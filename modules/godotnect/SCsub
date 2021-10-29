@@ -1,0 +1,24 @@
+#!/usr/bin/env python
+
+# SCsub
+
+Import('env')
+Import('env_modules')
+
+env_godotnect = env_modules.Clone()
+
+thirdparty_obj = []
+
+thirdparty_dir = "#thirdparty/libfreenect/"
+
+env_godotnect.Prepend(CPPPATH=[thirdparty_dir])
+
+module_obj = []
+
+env_godotnect.add_source_files(module_obj, "*.cpp")
+
+env.modules_sources += module_obj
+
+env.Append(LIBPATH=["/home/eamondo2/build/libfreenect/build/lib/"])
+
+env.Append(LIBS=["freenect"])
