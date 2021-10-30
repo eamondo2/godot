@@ -85,7 +85,8 @@ public:
 			//We technically could also get B data as well, or calculate it, but it won't exist in the inbound stream.
 			//TODO: add a calc and value set for the B channel to indicate IR shadow maybe?
 			//If there's a way to get the kinect's output to give us that information, we can perhaps set a flag value.
-			for (int i = 0; i < 640*480; i++) {
+			//chop by two to addres size difference between uint8_t and uint16_t
+			for (int i = 0; i < depth_data.size() / 2; i++) {
 				w[2 * i + 0] = depth[i] >> 8;
 				w[2 * i + 1] = depth[i] & 0xff;
 			}
@@ -176,7 +177,7 @@ bool GodotNectFeed::activate_feed() {
 			device->startVideo();
 			break;
 		default:
-			print_line("This should not happen, wrong feed idx");
+			print_line("This should not happen, wrong feed idx activate");
 			break;
 	}
 
