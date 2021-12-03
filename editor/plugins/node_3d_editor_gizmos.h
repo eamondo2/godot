@@ -45,7 +45,7 @@ class EditorNode3DGizmo : public Node3DGizmo {
 
 	struct Instance {
 		RID instance;
-		Ref<ArrayMesh> mesh;
+		Ref<Mesh> mesh;
 		Ref<Material> material;
 		Ref<SkinReference> skin_reference;
 		bool extra_margin = false;
@@ -95,7 +95,7 @@ protected:
 public:
 	void add_lines(const Vector<Vector3> &p_lines, const Ref<Material> &p_material, bool p_billboard = false, const Color &p_modulate = Color(1, 1, 1));
 	void add_vertices(const Vector<Vector3> &p_vertices, const Ref<Material> &p_material, Mesh::PrimitiveType p_primitive_type, bool p_billboard = false, const Color &p_modulate = Color(1, 1, 1));
-	void add_mesh(const Ref<ArrayMesh> &p_mesh, const Ref<Material> &p_material = Ref<Material>(), const Transform3D &p_xform = Transform3D(), const Ref<SkinReference> &p_skin_reference = Ref<SkinReference>());
+	void add_mesh(const Ref<Mesh> &p_mesh, const Ref<Material> &p_material = Ref<Material>(), const Transform3D &p_xform = Transform3D(), const Ref<SkinReference> &p_skin_reference = Ref<SkinReference>());
 	void add_collision_segments(const Vector<Vector3> &p_lines);
 	void add_collision_triangles(const Ref<TriangleMesh> &p_tmesh);
 	void add_unscaled_billboard(const Ref<Material> &p_material, real_t p_scale = 1, const Color &p_modulate = Color(1, 1, 1));
@@ -667,6 +667,23 @@ public:
 			Vector<Vector3> *r_body_b_points);
 
 	Joint3DGizmoPlugin();
+};
+
+class FogVolumeGizmoPlugin : public EditorNode3DGizmoPlugin {
+	GDCLASS(FogVolumeGizmoPlugin, EditorNode3DGizmoPlugin);
+
+public:
+	bool has_gizmo(Node3D *p_spatial) override;
+	String get_gizmo_name() const override;
+	int get_priority() const override;
+	void redraw(EditorNode3DGizmo *p_gizmo) override;
+
+	String get_handle_name(const EditorNode3DGizmo *p_gizmo, int p_id) const override;
+	Variant get_handle_value(const EditorNode3DGizmo *p_gizmo, int p_id) const override;
+	void set_handle(const EditorNode3DGizmo *p_gizmo, int p_id, Camera3D *p_camera, const Point2 &p_point) override;
+	void commit_handle(const EditorNode3DGizmo *p_gizmo, int p_id, const Variant &p_restore, bool p_cancel = false) override;
+
+	FogVolumeGizmoPlugin();
 };
 
 #endif // NODE_3D_EDITOR_GIZMOS_H

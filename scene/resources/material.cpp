@@ -1086,7 +1086,7 @@ void BaseMaterial3D::_update_shader() {
 		code += "	ALPHA = 1.0;\n";
 
 	} else if (transparency != TRANSPARENCY_DISABLED || flags[FLAG_USE_SHADOW_TO_OPACITY] || (distance_fade == DISTANCE_FADE_PIXEL_ALPHA) || proximity_fade_enabled) {
-		code += "	ALPHA = albedo.a * albedo_tex.a;\n";
+		code += "	ALPHA *= albedo.a * albedo_tex.a;\n";
 	}
 	if (transparency == TRANSPARENCY_ALPHA_HASH) {
 		code += "	ALPHA_HASH_SCALE = alpha_hash_scale;\n";
@@ -1100,7 +1100,7 @@ void BaseMaterial3D::_update_shader() {
 
 	if (proximity_fade_enabled) {
 		code += "	float depth_tex = textureLod(DEPTH_TEXTURE,SCREEN_UV,0.0).r;\n";
-		code += "	vec4 world_pos = INV_PROJECTION_MATRIX * vec4(SCREEN_UV*2.0-1.0,depth_tex*2.0-1.0,1.0);\n";
+		code += "	vec4 world_pos = INV_PROJECTION_MATRIX * vec4(SCREEN_UV*2.0-1.0,depth_tex,1.0);\n";
 		code += "	world_pos.xyz/=world_pos.w;\n";
 		code += "	ALPHA*=clamp(1.0-smoothstep(world_pos.z+proximity_fade_distance,world_pos.z,VERTEX.z),0.0,1.0);\n";
 	}
@@ -1658,13 +1658,28 @@ bool BaseMaterial3D::get_feature(Feature p_feature) const {
 
 void BaseMaterial3D::set_texture(TextureParam p_param, const Ref<Texture2D> &p_texture) {
 	ERR_FAIL_INDEX(p_param, TEXTURE_MAX);
+
+	if (get_texture(TEXTURE_ROUGHNESS).is_null() && p_texture.is_valid() && p_param == TEXTURE_ROUGHNESS) {
+		// If no roughness texture is currently set, automatically set the recommended value
+		// for roughness when using a roughness map.
+		set_roughness(1.0);
+	}
+
+	if (get_texture(TEXTURE_METALLIC).is_null() && p_texture.is_valid() && p_param == TEXTURE_METALLIC) {
+		// If no metallic texture is currently set, automatically set the recommended value
+		// for metallic when using a metallic map.
+		set_metallic(1.0);
+	}
+
 	textures[p_param] = p_texture;
 	RID rid = p_texture.is_valid() ? p_texture->get_rid() : RID();
 	RS::get_singleton()->material_set_param(_get_material(), shader_names->texture_names[p_param], rid);
+
 	if (p_texture.is_valid() && p_param == TEXTURE_ALBEDO) {
 		RS::get_singleton()->material_set_param(_get_material(), shader_names->albedo_texture_size,
 				Vector2i(p_texture->get_width(), p_texture->get_height()));
 	}
+
 	notify_property_list_changed();
 	_queue_shader_change();
 }
@@ -1695,7 +1710,7 @@ BaseMaterial3D::TextureFilter BaseMaterial3D::get_texture_filter() const {
 
 void BaseMaterial3D::_validate_feature(const String &text, Feature feature, PropertyInfo &property) const {
 	if (property.name.begins_with(text) && property.name != text + "_enabled" && !features[feature]) {
-		property.usage = PROPERTY_USAGE_NOEDITOR;
+		property.usage = PROPERTY_USAGE_NO_EDITOR;
 	}
 }
 
@@ -1729,23 +1744,23 @@ void BaseMaterial3D::_validate_property(PropertyInfo &property) const {
 	}
 
 	if (property.name == "billboard_keep_scale" && billboard_mode == BILLBOARD_DISABLED) {
-		property.usage = PROPERTY_USAGE_NOEDITOR;
+		property.usage = PROPERTY_USAGE_NO_EDITOR;
 	}
 
 	if (property.name == "grow_amount" && !grow_enabled) {
-		property.usage = PROPERTY_USAGE_NOEDITOR;
+		property.usage = PROPERTY_USAGE_NO_EDITOR;
 	}
 
 	if (property.name == "point_size" && !flags[FLAG_USE_POINT_SIZE]) {
-		property.usage = PROPERTY_USAGE_NOEDITOR;
+		property.usage = PROPERTY_USAGE_NO_EDITOR;
 	}
 
 	if (property.name == "proximity_fade_distance" && !proximity_fade_enabled) {
-		property.usage = PROPERTY_USAGE_NOEDITOR;
+		property.usage = PROPERTY_USAGE_NO_EDITOR;
 	}
 
 	if ((property.name == "distance_fade_max_distance" || property.name == "distance_fade_min_distance") && distance_fade == DISTANCE_FADE_DISABLED) {
-		property.usage = PROPERTY_USAGE_NOEDITOR;
+		property.usage = PROPERTY_USAGE_NO_EDITOR;
 	}
 
 	// you can only enable anti-aliasing (in materials) on alpha scissor and alpha hash

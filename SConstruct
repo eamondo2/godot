@@ -15,6 +15,7 @@ from collections import OrderedDict
 # Local
 import methods
 import glsl_builders
+import gles3_builders
 
 # Scan possible build platforms
 
@@ -130,6 +131,7 @@ opts.Add(BoolVariable("deprecated", "Enable deprecated features", True))
 opts.Add(BoolVariable("minizip", "Enable ZIP archive support using minizip", True))
 opts.Add(BoolVariable("xaudio2", "Enable the XAudio2 audio driver", False))
 opts.Add(BoolVariable("vulkan", "Enable the vulkan video driver", True))
+opts.Add(BoolVariable("opengl3", "Enable the OpenGL/GLES3 video driver", True))
 opts.Add("custom_modules", "A list of comma-separated directory paths containing custom modules to build.", "")
 opts.Add(BoolVariable("custom_modules_recursive", "Detect custom modules recursively for each specified path.", True))
 opts.Add(BoolVariable("use_volk", "Use the volk library to load the Vulkan loader dynamically", True))
@@ -147,7 +149,7 @@ opts.Add(BoolVariable("disable_3d", "Disable 3D nodes for a smaller executable",
 opts.Add(BoolVariable("disable_advanced_gui", "Disable advanced GUI nodes and behaviors", False))
 opts.Add("disable_classes", "Disable given classes (comma separated)", "")
 opts.Add(BoolVariable("modules_enabled_by_default", "If no, disable all modules except ones explicitly enabled", True))
-opts.Add(BoolVariable("no_editor_splash", "Don't use the custom splash screen for the editor", False))
+opts.Add(BoolVariable("no_editor_splash", "Don't use the custom splash screen for the editor", True))
 opts.Add("system_certs_path", "Use this path as SSL certificates default for editor (for package maintainers)", "")
 opts.Add(BoolVariable("use_precise_math_checks", "Math checks use very precise epsilon (debug option)", False))
 
@@ -298,6 +300,13 @@ opts.Update(env_base)
 env_base["platform"] = selected_platform  # Must always be re-set after calling opts.Update().
 Help(opts.GenerateHelpText(env_base))
 
+# Detect and print a warning listing unknown SCons variables to ease troubleshooting.
+unknown = opts.UnknownVariables()
+if unknown:
+    print("WARNING: Unknown SCons variables were passed and will be ignored:")
+    for item in unknown.items():
+        print("    " + item[0] + "=" + item[1])
+
 # add default include paths
 
 env_base.Prepend(CPPPATH=["#"])
@@ -320,6 +329,9 @@ if env_base["target"] == "debug":
 if env_base["use_precise_math_checks"]:
     env_base.Append(CPPDEFINES=["PRECISE_MATH_CHECKS"])
 
+if not env_base.File("#main/splash_editor.png").exists():
+    # Force disabling editor splash if missing.
+    env_base["no_editor_splash"] = True
 if env_base["no_editor_splash"]:
     env_base.Append(CPPDEFINES=["NO_EDITOR_SPLASH"])
 
@@ -700,6 +712,11 @@ if selected_platform in platform_list:
         ),
         "GLSL_HEADER": env.Builder(
             action=env.Run(glsl_builders.build_raw_headers, 'Building GLSL header: "$TARGET"'),
+            suffix="glsl.gen.h",
+            src_suffix=".glsl",
+        ),
+        "GLES3_GLSL": env.Builder(
+            action=env.Run(gles3_builders.build_gles3_headers, 'Building GLES3 GLSL header: "$TARGET"'),
             suffix="glsl.gen.h",
             src_suffix=".glsl",
         ),

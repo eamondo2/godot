@@ -63,6 +63,7 @@
 #include "scene/2d/position_2d.h"
 #include "scene/2d/ray_cast_2d.h"
 #include "scene/2d/remote_transform_2d.h"
+#include "scene/2d/shape_cast_2d.h"
 #include "scene/2d/skeleton_2d.h"
 #include "scene/2d/sprite_2d.h"
 #include "scene/2d/tile_map.h"
@@ -213,6 +214,7 @@
 #include "scene/3d/collision_shape_3d.h"
 #include "scene/3d/cpu_particles_3d.h"
 #include "scene/3d/decal.h"
+#include "scene/3d/fog_volume.h"
 #include "scene/3d/gpu_particles_3d.h"
 #include "scene/3d/gpu_particles_collision_3d.h"
 #include "scene/3d/importer_mesh_instance_3d.h"
@@ -245,6 +247,7 @@
 #include "scene/3d/world_environment.h"
 #include "scene/3d/xr_nodes.h"
 #include "scene/resources/environment.h"
+#include "scene/resources/fog_material.h"
 #include "scene/resources/importer_mesh.h"
 #include "scene/resources/mesh_library.h"
 #endif
@@ -520,6 +523,8 @@ void register_scene_types() {
 	GDREGISTER_CLASS(VisibleOnScreenNotifier3D);
 	GDREGISTER_CLASS(VisibleOnScreenEnabler3D);
 	GDREGISTER_CLASS(WorldEnvironment);
+	GDREGISTER_CLASS(FogVolume);
+	GDREGISTER_CLASS(FogMaterial);
 	GDREGISTER_CLASS(RemoteTransform3D);
 
 	GDREGISTER_VIRTUAL_CLASS(Joint3D);
@@ -624,6 +629,7 @@ void register_scene_types() {
 	GDREGISTER_CLASS(VisualShaderNodeParticleSphereEmitter);
 	GDREGISTER_CLASS(VisualShaderNodeParticleBoxEmitter);
 	GDREGISTER_CLASS(VisualShaderNodeParticleRingEmitter);
+	GDREGISTER_CLASS(VisualShaderNodeParticleMeshEmitter);
 	GDREGISTER_CLASS(VisualShaderNodeParticleMultiplyByAxisAngle);
 	GDREGISTER_CLASS(VisualShaderNodeParticleConeVelocity);
 	GDREGISTER_CLASS(VisualShaderNodeParticleRandomness);
@@ -661,6 +667,7 @@ void register_scene_types() {
 	GDREGISTER_CLASS(CollisionShape2D);
 	GDREGISTER_CLASS(CollisionPolygon2D);
 	GDREGISTER_CLASS(RayCast2D);
+	GDREGISTER_CLASS(ShapeCast2D);
 	GDREGISTER_CLASS(VisibleOnScreenNotifier2D);
 	GDREGISTER_CLASS(VisibleOnScreenEnabler2D);
 	GDREGISTER_CLASS(Polygon2D);
@@ -787,7 +794,8 @@ void register_scene_types() {
 	GDREGISTER_CLASS(MeshTexture);
 	GDREGISTER_CLASS(CurveTexture);
 	GDREGISTER_CLASS(CurveXYZTexture);
-	GDREGISTER_CLASS(GradientTexture);
+	GDREGISTER_CLASS(GradientTexture1D);
+	GDREGISTER_CLASS(GradientTexture2D);
 	GDREGISTER_CLASS(ProxyTexture);
 	GDREGISTER_CLASS(AnimatedTexture);
 	GDREGISTER_CLASS(CameraTexture);
@@ -917,6 +925,7 @@ void register_scene_types() {
 	ClassDB::add_compatibility_class("EditorSpatialGizmo", "EditorNode3DGizmo");
 	ClassDB::add_compatibility_class("EditorSpatialGizmoPlugin", "EditorNode3DGizmoPlugin");
 	ClassDB::add_compatibility_class("Generic6DOFJoint", "Generic6DOFJoint3D");
+	ClassDB::add_compatibility_class("GradientTexture", "GradientTexture1D");
 	ClassDB::add_compatibility_class("HeightMapShape", "HeightMapShape3D");
 	ClassDB::add_compatibility_class("HingeJoint", "HingeJoint3D");
 	ClassDB::add_compatibility_class("Joint", "Joint3D");
@@ -1022,6 +1031,16 @@ void register_scene_types() {
 		GLOBAL_DEF_BASIC(vformat("layer_names/3d_navigation/layer_%d", i + 1), "");
 	}
 
+	if (RenderingServer::get_singleton()) {
+		ColorPicker::init_shaders(); // RenderingServer needs to exist for this to succeed.
+	}
+
+	SceneDebugger::initialize();
+
+	NativeExtensionManager::get_singleton()->initialize_extensions(NativeExtension::INITIALIZATION_LEVEL_SCENE);
+}
+
+void initialize_theme() {
 	bool default_theme_hidpi = GLOBAL_DEF("gui/theme/use_hidpi", false);
 	ProjectSettings::get_singleton()->set_custom_property_info("gui/theme/use_hidpi", PropertyInfo(Variant::BOOL, "gui/theme/use_hidpi", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_RESTART_IF_CHANGED));
 	String theme_path = GLOBAL_DEF_RST("gui/theme/custom", "");
@@ -1040,7 +1059,6 @@ void register_scene_types() {
 	// Always make the default theme to avoid invalid default font/icon/style in the given theme.
 	if (RenderingServer::get_singleton()) {
 		make_default_theme(default_theme_hidpi, font);
-		ColorPicker::init_shaders(); // RenderingServer needs to exist for this to succeed.
 	}
 
 	if (theme_path != String()) {
@@ -1054,9 +1072,6 @@ void register_scene_types() {
 			ERR_PRINT("Error loading custom theme '" + theme_path + "'");
 		}
 	}
-	SceneDebugger::initialize();
-
-	NativeExtensionManager::get_singleton()->initialize_extensions(NativeExtension::INITIALIZATION_LEVEL_SCENE);
 }
 
 void unregister_scene_types() {

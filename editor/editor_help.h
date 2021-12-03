@@ -145,6 +145,8 @@ class EditorHelp : public VBoxContainer {
 	void _add_type(const String &p_type, const String &p_enum = String());
 	void _add_method(const DocData::MethodDoc &p_method, bool p_overview = true);
 
+	void _add_bulletpoint();
+
 	void _class_list_select(const String &p_select);
 	void _class_desc_select(const String &p_select);
 	void _class_desc_input(const Ref<InputEvent> &p_input);
@@ -152,6 +154,8 @@ class EditorHelp : public VBoxContainer {
 
 	Error _goto_desc(const String &p_class, int p_vscr = -1);
 	//void _update_history_buttons();
+	void _update_method_list(const Vector<DocData::MethodDoc> p_methods, bool &r_method_descrpitons);
+	void _update_method_descriptions(const DocData::ClassDoc p_classdoc, const Vector<DocData::MethodDoc> p_methods, const String &p_method_type);
 	void _update_doc();
 
 	void _request_help(const String &p_string);

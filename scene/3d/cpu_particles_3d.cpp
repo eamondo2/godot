@@ -73,6 +73,7 @@ void CPUParticles3D::set_amount(int p_amount) {
 	}
 
 	particle_data.resize((12 + 4 + 4) * p_amount);
+	RS::get_singleton()->multimesh_set_visible_instances(multimesh, -1);
 	RS::get_singleton()->multimesh_allocate_data(multimesh, p_amount, RS::MULTIMESH_TRANSFORM_3D, true, true);
 
 	particle_order.resize(p_amount);
@@ -212,8 +213,7 @@ TypedArray<String> CPUParticles3D::get_configuration_warnings() const {
 		warnings.push_back(TTR("Nothing is visible because no mesh has been assigned."));
 	}
 
-	if (!anim_material_found && (get_param_max(PARAM_ANIM_SPEED) != 0.0 || get_param_max(PARAM_ANIM_OFFSET) != 0.0 ||
-										get_param_curve(PARAM_ANIM_SPEED).is_valid() || get_param_curve(PARAM_ANIM_OFFSET).is_valid())) {
+	if (!anim_material_found && (get_param_max(PARAM_ANIM_SPEED) != 0.0 || get_param_max(PARAM_ANIM_OFFSET) != 0.0 || get_param_curve(PARAM_ANIM_SPEED).is_valid() || get_param_curve(PARAM_ANIM_OFFSET).is_valid())) {
 		warnings.push_back(TTR("CPUParticles3D animation requires the usage of a StandardMaterial3D whose Billboard Mode is set to \"Particle Billboard\"."));
 	}
 
@@ -531,6 +531,8 @@ void CPUParticles3D::_validate_property(PropertyInfo &property) const {
 	if (property.name.begins_with("scale_curve_") && !split_scale) {
 		property.usage = PROPERTY_USAGE_NONE;
 	}
+
+	Node3D::_validate_property(property);
 }
 
 static uint32_t idhash(uint32_t x) {
@@ -879,53 +881,53 @@ void CPUParticles3D::_particles_process(double p_delta) {
 			p.custom[1] = p.time / lifetime;
 			tv = p.time / p.lifetime;
 
-			real_t tex_linear_velocity = 0.0;
+			real_t tex_linear_velocity = 1.0;
 			if (curve_parameters[PARAM_INITIAL_LINEAR_VELOCITY].is_valid()) {
 				tex_linear_velocity = curve_parameters[PARAM_INITIAL_LINEAR_VELOCITY]->interpolate(tv);
 			}
 
-			real_t tex_orbit_velocity = 0.0;
+			real_t tex_orbit_velocity = 1.0;
 			if (particle_flags[PARTICLE_FLAG_DISABLE_Z]) {
 				if (curve_parameters[PARAM_ORBIT_VELOCITY].is_valid()) {
 					tex_orbit_velocity = curve_parameters[PARAM_ORBIT_VELOCITY]->interpolate(tv);
 				}
 			}
 
-			real_t tex_angular_velocity = 0.0;
+			real_t tex_angular_velocity = 1.0;
 			if (curve_parameters[PARAM_ANGULAR_VELOCITY].is_valid()) {
 				tex_angular_velocity = curve_parameters[PARAM_ANGULAR_VELOCITY]->interpolate(tv);
 			}
 
-			real_t tex_linear_accel = 0.0;
+			real_t tex_linear_accel = 1.0;
 			if (curve_parameters[PARAM_LINEAR_ACCEL].is_valid()) {
 				tex_linear_accel = curve_parameters[PARAM_LINEAR_ACCEL]->interpolate(tv);
 			}
 
-			real_t tex_tangential_accel = 0.0;
+			real_t tex_tangential_accel = 1.0;
 			if (curve_parameters[PARAM_TANGENTIAL_ACCEL].is_valid()) {
 				tex_tangential_accel = curve_parameters[PARAM_TANGENTIAL_ACCEL]->interpolate(tv);
 			}
 
-			real_t tex_radial_accel = 0.0;
+			real_t tex_radial_accel = 1.0;
 			if (curve_parameters[PARAM_RADIAL_ACCEL].is_valid()) {
 				tex_radial_accel = curve_parameters[PARAM_RADIAL_ACCEL]->interpolate(tv);
 			}
 
-			real_t tex_damping = 0.0;
+			real_t tex_damping = 1.0;
 			if (curve_parameters[PARAM_DAMPING].is_valid()) {
 				tex_damping = curve_parameters[PARAM_DAMPING]->interpolate(tv);
 			}
 
-			real_t tex_angle = 0.0;
+			real_t tex_angle = 1.0;
 			if (curve_parameters[PARAM_ANGLE].is_valid()) {
 				tex_angle = curve_parameters[PARAM_ANGLE]->interpolate(tv);
 			}
-			real_t tex_anim_speed = 0.0;
+			real_t tex_anim_speed = 1.0;
 			if (curve_parameters[PARAM_ANIM_SPEED].is_valid()) {
 				tex_anim_speed = curve_parameters[PARAM_ANIM_SPEED]->interpolate(tv);
 			}
 
-			real_t tex_anim_offset = 0.0;
+			real_t tex_anim_offset = 1.0;
 			if (curve_parameters[PARAM_ANIM_OFFSET].is_valid()) {
 				tex_anim_offset = curve_parameters[PARAM_ANIM_OFFSET]->interpolate(tv);
 			}
@@ -982,7 +984,7 @@ void CPUParticles3D::_particles_process(double p_delta) {
 			real_t base_angle = (tex_angle)*Math::lerp(parameters_min[PARAM_ANGLE], parameters_max[PARAM_ANGLE], p.angle_rand);
 			base_angle += p.custom[1] * lifetime * tex_angular_velocity * Math::lerp(parameters_min[PARAM_ANGULAR_VELOCITY], parameters_max[PARAM_ANGULAR_VELOCITY], rand_from_seed(alt_seed));
 			p.custom[0] = Math::deg2rad(base_angle); //angle
-			p.custom[2] = tex_anim_offset * Math::lerp(parameters_min[PARAM_ANIM_OFFSET], parameters_max[PARAM_ANIM_OFFSET], p.anim_offset_rand) + p.custom[1] * tex_anim_speed * Math::lerp(parameters_min[PARAM_ANIM_SPEED], parameters_max[PARAM_ANIM_SPEED], rand_from_seed(alt_seed)); //angle
+			p.custom[2] = tex_anim_offset * Math::lerp(parameters_min[PARAM_ANIM_OFFSET], parameters_max[PARAM_ANIM_OFFSET], p.anim_offset_rand) + tv * tex_anim_speed * Math::lerp(parameters_min[PARAM_ANIM_SPEED], parameters_max[PARAM_ANIM_SPEED], rand_from_seed(alt_seed)); //angle
 		}
 		//apply color
 		//apply hue rotation
@@ -1326,7 +1328,7 @@ void CPUParticles3D::convert_from_particles(Node *p_particles) {
 
 	set_color(material->get_color());
 
-	Ref<GradientTexture> gt = material->get_color_ramp();
+	Ref<GradientTexture1D> gt = material->get_color_ramp();
 	if (gt.is_valid()) {
 		set_color_ramp(gt->get_gradient());
 	}

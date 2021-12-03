@@ -85,11 +85,10 @@ public:
 				next_element(other.next_element) {
 		}
 
-		Element &operator=(const Element &other) {
+		void operator=(const Element &other) {
 			list_element = other.list_element;
 			next_element = other.next_element;
 			prev_element = other.prev_element;
-			return *this;
 		}
 
 		_FORCE_INLINE_ bool operator==(const Element &p_other) const {
@@ -145,9 +144,8 @@ public:
 				list_element(other.list_element) {
 		}
 
-		ConstElement &operator=(const ConstElement &other) {
+		void operator=(const ConstElement &other) {
 			list_element = other.list_element;
-			return *this;
 		}
 
 		ConstElement next() const {
@@ -207,8 +205,12 @@ public:
 			(*list_element)->get().second = p_value;
 			return Element(*list_element);
 		}
-		typename InternalList::Element *new_element = list.push_back(Pair<const K *, V>(nullptr, p_value));
+		// Incorrectly set the first value of the pair with a value that will
+		// be invalid as soon as we leave this function...
+		typename InternalList::Element *new_element = list.push_back(Pair<const K *, V>(&p_key, p_value));
+		// ...this is needed here in case the hashmap recursively reference itself...
 		typename InternalMap::Element *e = map.set(p_key, new_element);
+		// ...now we can set the right value !
 		new_element->get().first = &e->key();
 
 		return Element(new_element);

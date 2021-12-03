@@ -143,7 +143,7 @@ void TabBar::gui_input(const Ref<InputEvent> &p_event) {
 	Ref<InputEventMouseButton> mb = p_event;
 
 	if (mb.is_valid()) {
-		if (mb->is_pressed() && mb->get_button_index() == MOUSE_BUTTON_WHEEL_UP && !mb->is_command_pressed()) {
+		if (mb->is_pressed() && mb->get_button_index() == MouseButton::WHEEL_UP && !mb->is_command_pressed()) {
 			if (scrolling_enabled && buttons_visible) {
 				if (offset > 0) {
 					offset--;
@@ -152,7 +152,7 @@ void TabBar::gui_input(const Ref<InputEvent> &p_event) {
 			}
 		}
 
-		if (mb->is_pressed() && mb->get_button_index() == MOUSE_BUTTON_WHEEL_DOWN && !mb->is_command_pressed()) {
+		if (mb->is_pressed() && mb->get_button_index() == MouseButton::WHEEL_DOWN && !mb->is_command_pressed()) {
 			if (scrolling_enabled && buttons_visible) {
 				if (missing_right) {
 					offset++;
@@ -162,9 +162,9 @@ void TabBar::gui_input(const Ref<InputEvent> &p_event) {
 			}
 		}
 
-		if (rb_pressing && !mb->is_pressed() && mb->get_button_index() == MOUSE_BUTTON_LEFT) {
+		if (rb_pressing && !mb->is_pressed() && mb->get_button_index() == MouseButton::LEFT) {
 			if (rb_hover != -1) {
-				// pressed
+				// Right mouse button clicked.
 				emit_signal(SNAME("tab_rmb_clicked"), rb_hover);
 			}
 
@@ -172,18 +172,18 @@ void TabBar::gui_input(const Ref<InputEvent> &p_event) {
 			update();
 		}
 
-		if (cb_pressing && !mb->is_pressed() && mb->get_button_index() == MOUSE_BUTTON_LEFT) {
+		if (cb_pressing && !mb->is_pressed() && mb->get_button_index() == MouseButton::LEFT) {
 			if (cb_hover != -1) {
-				// pressed
-				emit_signal(SNAME("tab_closed"), cb_hover);
+				// Close button pressed.
+				emit_signal(SNAME("tab_close_pressed"), cb_hover);
 			}
 
 			cb_pressing = false;
 			update();
 		}
 
-		if (mb->is_pressed() && (mb->get_button_index() == MOUSE_BUTTON_LEFT || (select_with_rmb && mb->get_button_index() == MOUSE_BUTTON_RIGHT))) {
-			// clicks
+		if (mb->is_pressed() && (mb->get_button_index() == MouseButton::LEFT || (select_with_rmb && mb->get_button_index() == MouseButton::RIGHT))) {
+			// Clicks.
 			Point2 pos = mb->get_position();
 
 			if (buttons_visible) {
@@ -222,7 +222,7 @@ void TabBar::gui_input(const Ref<InputEvent> &p_event) {
 				}
 			}
 
-			if (max_drawn_tab <= 0) {
+			if (tabs.is_empty()) {
 				// Return early if there are no actual tabs to handle input for.
 				return;
 			}
@@ -235,7 +235,7 @@ void TabBar::gui_input(const Ref<InputEvent> &p_event) {
 					return;
 				}
 
-				if (tabs[i].cb_rect.has_point(pos)) {
+				if (tabs[i].cb_rect.has_point(pos) && (cb_displaypolicy == CLOSE_BUTTON_SHOW_ALWAYS || (cb_displaypolicy == CLOSE_BUTTON_SHOW_ACTIVE_ONLY && i == current))) {
 					cb_pressing = true;
 					update();
 					return;
@@ -659,7 +659,7 @@ void TabBar::_update_hover() {
 	}
 
 	const Point2 &pos = get_local_mouse_position();
-	// test hovering to display right or close button
+	// test hovering to display right or close button.
 	int hover_now = -1;
 	int hover_buttons = -1;
 	for (int i = offset; i < tabs.size(); i++) {
@@ -684,7 +684,7 @@ void TabBar::_update_hover() {
 		emit_signal(SNAME("tab_hovered"), hover);
 	}
 
-	if (hover_buttons == -1) { // no hover
+	if (hover_buttons == -1) { // No hover.
 		rb_hover = hover_buttons;
 		cb_hover = hover_buttons;
 	}
@@ -790,7 +790,7 @@ void TabBar::clear_tabs() {
 
 void TabBar::remove_tab(int p_idx) {
 	ERR_FAIL_INDEX(p_idx, tabs.size());
-	tabs.remove(p_idx);
+	tabs.remove_at(p_idx);
 	if (current >= p_idx) {
 		current--;
 	}
@@ -860,7 +860,7 @@ bool TabBar::can_drop_data(const Point2 &p_point, const Variant &p_data) const {
 		if (from_path == to_path) {
 			return true;
 		} else if (get_tabs_rearrange_group() != -1) {
-			// drag and drop between other TabBars
+			// Drag and drop between other TabBars.
 			Node *from_node = get_node(from_path);
 			TabBar *from_tabs = Object::cast_to<TabBar>(from_node);
 			if (from_tabs && from_tabs->get_tabs_rearrange_group() == get_tabs_rearrange_group()) {
@@ -895,7 +895,7 @@ void TabBar::drop_data(const Point2 &p_point, const Variant &p_data) {
 			emit_signal(SNAME("active_tab_rearranged"), hover_now);
 			set_current_tab(hover_now);
 		} else if (get_tabs_rearrange_group() != -1) {
-			// drag and drop between Tabs
+			// Drag and drop between Tabs.
 			Node *from_node = get_node(from_path);
 			TabBar *from_tabs = Object::cast_to<TabBar>(from_node);
 			if (from_tabs && from_tabs->get_tabs_rearrange_group() == get_tabs_rearrange_group()) {
@@ -961,7 +961,7 @@ void TabBar::move_tab(int from, int to) {
 	ERR_FAIL_INDEX(to, tabs.size());
 
 	Tab tab_from = tabs[from];
-	tabs.remove(from);
+	tabs.remove_at(from);
 	tabs.insert(to, tab_from);
 
 	_update_cache();
@@ -1172,7 +1172,7 @@ void TabBar::_bind_methods() {
 
 	ADD_SIGNAL(MethodInfo("tab_changed", PropertyInfo(Variant::INT, "tab")));
 	ADD_SIGNAL(MethodInfo("tab_rmb_clicked", PropertyInfo(Variant::INT, "tab")));
-	ADD_SIGNAL(MethodInfo("tab_closed", PropertyInfo(Variant::INT, "tab")));
+	ADD_SIGNAL(MethodInfo("tab_close_pressed", PropertyInfo(Variant::INT, "tab")));
 	ADD_SIGNAL(MethodInfo("tab_hovered", PropertyInfo(Variant::INT, "tab")));
 	ADD_SIGNAL(MethodInfo("active_tab_rearranged", PropertyInfo(Variant::INT, "idx_to")));
 	ADD_SIGNAL(MethodInfo("tab_clicked", PropertyInfo(Variant::INT, "tab")));

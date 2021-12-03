@@ -170,6 +170,13 @@ void GPUParticles2D::set_trail_section_subdivisions(int p_subdivisions) {
 	update();
 }
 
+#ifdef TOOLS_ENABLED
+void GPUParticles2D::set_show_visibility_rect(bool p_show_visibility_rect) {
+	show_visibility_rect = p_show_visibility_rect;
+	update();
+}
+#endif
+
 bool GPUParticles2D::is_trail_enabled() const {
 	return trail_enabled;
 }
@@ -284,7 +291,7 @@ TypedArray<String> GPUParticles2D::get_configuration_warnings() const {
 	TypedArray<String> warnings = Node::get_configuration_warnings();
 
 	if (RenderingServer::get_singleton()->is_low_end()) {
-		warnings.push_back(TTR("GPU-based particles are not supported by the GLES2 video driver.\nUse the CPUParticles2D node instead. You can use the \"Convert to CPUParticles2D\" option for this purpose."));
+		warnings.push_back(TTR("GPU-based particles are not supported by the OpenGL video driver.\nUse the CPUParticles2D node instead. You can use the \"Convert to CPUParticles2D\" option for this purpose."));
 	}
 
 	if (process_material.is_null()) {
@@ -452,7 +459,7 @@ void GPUParticles2D::_notification(int p_what) {
 		RS::get_singleton()->canvas_item_add_particles(get_canvas_item(), particles, texture_rid);
 
 #ifdef TOOLS_ENABLED
-		if (Engine::get_singleton()->is_editor_hint() && (this == get_tree()->get_edited_scene_root() || get_tree()->get_edited_scene_root()->is_ancestor_of(this))) {
+		if (show_visibility_rect) {
 			draw_rect(visibility_rect, Color(0, 0.7, 0.9, 0.4), false);
 		}
 #endif
@@ -588,6 +595,9 @@ GPUParticles2D::GPUParticles2D() {
 	set_speed_scale(1);
 	set_fixed_fps(30);
 	set_collision_base_size(collision_base_size);
+#ifdef TOOLS_ENABLED
+	show_visibility_rect = false;
+#endif
 }
 
 GPUParticles2D::~GPUParticles2D() {

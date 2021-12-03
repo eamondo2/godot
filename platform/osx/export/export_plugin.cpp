@@ -325,11 +325,11 @@ void EditorExportPlatformOSX::_fix_plist(const Ref<EditorExportPreset> &p_preset
 }
 
 /**
-    If we're running the OSX version of the Godot editor we'll:
-    - export our application bundle to a temporary folder
-    - attempt to code sign it
-    - and then wrap it up in a DMG
-**/
+ * If we're running the OSX version of the Godot editor we'll:
+ * - export our application bundle to a temporary folder
+ * - attempt to code sign it
+ * - and then wrap it up in a DMG
+ */
 
 Error EditorExportPlatformOSX::_notarize(const Ref<EditorExportPreset> &p_preset, const String &p_path) {
 #ifdef OSX_ENABLED
@@ -960,9 +960,10 @@ void EditorExportPlatformOSX::_zip_folder_recursive(zipFile &p_zip, const String
 
 	DirAccessRef da = DirAccess::open(dir);
 	da->list_dir_begin();
-	String f;
-	while ((f = da->get_next()) != "") {
+	String f = da->get_next();
+	while (!f.is_empty()) {
 		if (f == "." || f == "..") {
+			f = da->get_next();
 			continue;
 		}
 		if (da->is_link(f)) {
@@ -1048,10 +1049,24 @@ void EditorExportPlatformOSX::_zip_folder_recursive(zipFile &p_zip, const String
 					0x0314, // "version made by", 0x03 - Unix, 0x14 - ZIP specification version 2.0, required to store Unix file permissions
 					0);
 
-			Vector<uint8_t> array = FileAccess::get_file_as_array(dir.plus_file(f));
-			zipWriteInFileInZip(p_zip, array.ptr(), array.size());
+			FileAccessRef fa = FileAccess::open(dir.plus_file(f), FileAccess::READ);
+			if (!fa) {
+				ERR_FAIL_MSG("Can't open file to read from path '" + String(dir.plus_file(f)) + "'.");
+			}
+			const int bufsize = 16384;
+			uint8_t buf[bufsize];
+
+			while (true) {
+				uint64_t got = fa->get_buffer(buf, bufsize);
+				if (got == 0) {
+					break;
+				}
+				zipWriteInFileInZip(p_zip, buf, got);
+			}
+
 			zipCloseFileInZip(p_zip);
 		}
+		f = da->get_next();
 	}
 	da->list_dir_end();
 }
