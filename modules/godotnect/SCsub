@@ -7,11 +7,15 @@ Import('env_modules')
 
 env_godotnect = env_modules.Clone()
 
-thirdparty_obj = []
+libfreenect_basedir = "#thirdparty/libfreenect/"
 
-thirdparty_dir = "#thirdparty/libfreenect/"
+libfreenect_folders = ["include/", "wrappers/cpp/" ]
 
-env_godotnect.Prepend(CPPPATH=[thirdparty_dir])
+libfreenect_dirs = [libfreenect_basedir + folder for folder in libfreenect_folders]
+
+libusb_dirs = "#thirdparty/libusb/libusb/"
+
+env_godotnect.Prepend(CPPPATH=[libfreenect_dirs, libusb_dirs])
 
 module_obj = []
 
