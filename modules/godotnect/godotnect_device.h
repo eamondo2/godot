@@ -10,16 +10,22 @@
 // Device implementation, keeping it here and out of the way for convenience
 class GodotNectDevice : public Freenect::FreenectDevice {
 public:
-	// Testing adding the extra params so that we can pass specific depth/video format options at instantiation time.
-	GodotNectDevice(freenect_context *_ctx, int _index, freenect_depth_format depth_fmt, freenect_video_format video_fmt, freenect_resolution resolution_fmt);
+  freenect_context *f_ctx; // Stash the context here for use.
 
-	void VideoCallback(void *_rgb, uint32_t timestamp);
+  // Testing adding the extra params so that we can pass specific depth/video
+  // format options at instantiation time.
+  GodotNectDevice(freenect_context *_ctx, int _index,
+                  freenect_depth_format depth_fmt,
+                  freenect_video_format video_fmt,
+                  freenect_resolution resolution_fmt);
 
-	void DepthCallback(void *_depth, uint32_t timestamp);
+  void VideoCallback(void *_rgb, uint32_t timestamp);
+
+  void DepthCallback(void *_depth, uint32_t timestamp);
 
 private:
-	Vector<uint16_t> depth_data;
-	Vector<uint8_t> video_data;
+  Vector<uint16_t> depth_data;
+  Vector<uint8_t> video_data;
 };
 
 #endif
