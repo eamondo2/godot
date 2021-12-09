@@ -11,6 +11,9 @@
 
 // Stolen from navigation_Server_3d.cpp
 
+/**
+        Constructor.
+**/
 GodotNect::GodotNect() {
   ERR_FAIL_COND(singleton != nullptr); // Test to make sure that the singleton
                                        // is the only instance that exists.
@@ -23,13 +26,15 @@ GodotNect::GodotNect() {
   singleton = this;
 }
 
+/**
+        Destructor.
+**/
 GodotNect::~GodotNect() {
 
-  singleton = nullptr;
 
   // Need control here to test if the kinect has been acquired, and drop the
-  // connection if that is the case. I think this is where that ought to be done,
-  // at least call a separate handler method for that.
+  // connection if that is the case. I think this is where that ought to be
+  // done, at least call a separate handler method for that.
 
   if (this->freenect_backend_is_initialized && this->kinect_is_initialized) {
     // Kinect is managed, we need to drop it and tell it to shut down.
@@ -51,17 +56,26 @@ GodotNect::~GodotNect() {
 
   this->freenect_backend_is_initialized = false;
   this->kinect_is_initialized = false;
+  
+  singleton = nullptr;
 }
 
+/**
+        Fetches the singleton instance.
+        @return GodotNect object, the singleton.
+**/
 GodotNect *GodotNect::get_singleton() { return singleton; }
 
 // Need to remember to fill this properly so that the methods exposed can
 // actually be called via GDScript.
+/**
+        Bind methods for use in GDScript.
+**/
 void GodotNect::_bind_methods() {}
 
 /**
         Returns true/false depending on if the kinect can be reached
-        @returns bool
+        @return bool
 **/
 bool GodotNect::get_kinect_status() {
   return get_singleton()->kinect_is_initialized;
@@ -70,7 +84,7 @@ bool GodotNect::get_kinect_status() {
 /**
         Returns true/false depending on whether the Freenect backend has been
 created.
-        @returns bool
+        @return bool
 **/
 bool GodotNect::get_freenect_backend_status() {
   return get_singleton()->freenect_backend_is_initialized;
@@ -78,14 +92,20 @@ bool GodotNect::get_freenect_backend_status() {
 
 /**
         Attempts to initialize the kinect itself.
-        @returns bool for indicating success/failure
+        @return bool for indicating success/failure
 **/
-bool GodotNect::initialize_kinect() { return true; }
+bool GodotNect::initialize_kinect() { 
+
+	//Here's where we need to decide if I'm actually going to bother using the existing backend stuff from the lib or do most of it myself.
+	//I kinda want to actually implement the device handling stuff on my side, and bypass the c++ lib structures, it'll give more access.
+
+	return true; 
+}
 
 /**
         Attempts to start up the Freenect library backend, including the
 freewheeling thread.
-        @returns bool for indicating success/failure.
+        @return bool for indicating success/failure.
 **/
 bool GodotNect::initialize_freenect_backend() {
 
