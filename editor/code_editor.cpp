@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -122,7 +122,7 @@ void FindReplaceBar::unhandled_input(const Ref<InputEvent> &p_event) {
 		return;
 	}
 
-	Control *focus_owner = get_focus_owner();
+	Control *focus_owner = get_viewport()->gui_get_focus_owner();
 	if (text_editor->has_focus() || (focus_owner && vbc_lineedit->is_ancestor_of(focus_owner))) {
 		bool accepted = true;
 
@@ -624,7 +624,7 @@ FindReplaceBar::FindReplaceBar() {
 
 	vbc_lineedit = memnew(VBoxContainer);
 	add_child(vbc_lineedit);
-	vbc_lineedit->set_alignment(ALIGN_CENTER);
+	vbc_lineedit->set_alignment(BoxContainer::ALIGNMENT_CENTER);
 	vbc_lineedit->set_h_size_flags(SIZE_EXPAND_FILL);
 	VBoxContainer *vbc_button = memnew(VBoxContainer);
 	add_child(vbc_button);
@@ -633,10 +633,10 @@ FindReplaceBar::FindReplaceBar() {
 
 	HBoxContainer *hbc_button_search = memnew(HBoxContainer);
 	vbc_button->add_child(hbc_button_search);
-	hbc_button_search->set_alignment(ALIGN_END);
+	hbc_button_search->set_alignment(BoxContainer::ALIGNMENT_END);
 	hbc_button_replace = memnew(HBoxContainer);
 	vbc_button->add_child(hbc_button_replace);
-	hbc_button_replace->set_alignment(ALIGN_END);
+	hbc_button_replace->set_alignment(BoxContainer::ALIGNMENT_END);
 
 	HBoxContainer *hbc_option_search = memnew(HBoxContainer);
 	vbc_option->add_child(hbc_option_search);
@@ -724,7 +724,7 @@ void CodeTextEditor::input(const Ref<InputEvent> &event) {
 	}
 
 	if (!text_editor->has_focus()) {
-		if ((find_replace_bar != nullptr && find_replace_bar->is_visible()) && (find_replace_bar->has_focus() || find_replace_bar->is_ancestor_of(get_focus_owner()))) {
+		if ((find_replace_bar != nullptr && find_replace_bar->is_visible()) && (find_replace_bar->has_focus() || find_replace_bar->is_ancestor_of(get_viewport()->gui_get_focus_owner()))) {
 			if (ED_IS_SHORTCUT("script_text_editor/find_next", key_event)) {
 				find_replace_bar->search_next();
 				accept_event();
@@ -884,8 +884,8 @@ Ref<Texture2D> CodeTextEditor::_get_completion_icon(const ScriptCodeCompletionOp
 	Ref<Texture2D> tex;
 	switch (p_option.kind) {
 		case ScriptCodeCompletionOption::KIND_CLASS: {
-			if (has_theme_icon(p_option.display, "EditorIcons")) {
-				tex = get_theme_icon(p_option.display, "EditorIcons");
+			if (has_theme_icon(p_option.display, SNAME("EditorIcons"))) {
+				tex = get_theme_icon(p_option.display, SNAME("EditorIcons"));
 			} else {
 				tex = get_theme_icon(SNAME("Object"), SNAME("EditorIcons"));
 			}
@@ -1534,7 +1534,7 @@ void CodeTextEditor::set_edit_state(const Variant &p_state) {
 
 void CodeTextEditor::set_error(const String &p_error) {
 	error->set_text(p_error);
-	if (p_error != "") {
+	if (!p_error.is_empty()) {
 		error->set_default_cursor_shape(CURSOR_POINTING_HAND);
 	} else {
 		error->set_default_cursor_shape(CURSOR_ARROW);
@@ -1547,8 +1547,10 @@ void CodeTextEditor::set_error_pos(int p_line, int p_column) {
 }
 
 void CodeTextEditor::goto_error() {
-	if (error->get_text() != "") {
-		text_editor->unfold_line(error_line);
+	if (!error->get_text().is_empty()) {
+		if (text_editor->get_line_count() != error_line) {
+			text_editor->unfold_line(error_line);
+		}
 		text_editor->set_caret_line(error_line);
 		text_editor->set_caret_column(error_column);
 		text_editor->center_viewport_to_caret();
@@ -1661,16 +1663,28 @@ void CodeTextEditor::_error_pressed(const Ref<InputEvent> &p_event) {
 
 void CodeTextEditor::_notification(int p_what) {
 	switch (p_what) {
+		case NOTIFICATION_ENTER_TREE:
 		case NOTIFICATION_THEME_CHANGED: {
+			error_button->set_icon(get_theme_icon(SNAME("StatusError"), SNAME("EditorIcons")));
+			error_button->add_theme_color_override("font_color", get_theme_color(SNAME("error_color"), SNAME("Editor")));
+			error_button->add_theme_font_override("font", get_theme_font(SNAME("status_source"), SNAME("EditorFonts")));
+			error_button->add_theme_font_size_override("font_size", get_theme_font_size(SNAME("status_source_size"), SNAME("EditorFonts")));
+
+			warning_button->set_icon(get_theme_icon(SNAME("NodeWarning"), SNAME("EditorIcons")));
+			warning_button->add_theme_color_override("font_color", get_theme_color(SNAME("warning_color"), SNAME("Editor")));
+			warning_button->add_theme_font_override("font", get_theme_font(SNAME("status_source"), SNAME("EditorFonts")));
+			warning_button->add_theme_font_size_override("font_size", get_theme_font_size(SNAME("status_source_size"), SNAME("EditorFonts")));
+
+			line_and_col_txt->add_theme_font_override("font", get_theme_font(SNAME("status_source"), SNAME("EditorFonts")));
+			line_and_col_txt->add_theme_font_size_override("font_size", get_theme_font_size(SNAME("status_source_size"), SNAME("EditorFonts")));
+
+			if (p_what == NOTIFICATION_ENTER_TREE) {
+				break;
+			}
 			if (toggle_scripts_button->is_visible()) {
 				update_toggle_scripts_button();
 			}
 			_update_text_editor_theme();
-		} break;
-		case NOTIFICATION_ENTER_TREE: {
-			error_button->set_icon(get_theme_icon(SNAME("StatusError"), SNAME("EditorIcons")));
-			warning_button->set_icon(get_theme_icon(SNAME("NodeWarning"), SNAME("EditorIcons")));
-			add_theme_constant_override("separation", 4 * EDSCALE);
 		} break;
 		case NOTIFICATION_VISIBILITY_CHANGED: {
 			if (toggle_scripts_button->is_visible()) {
@@ -1854,7 +1868,7 @@ CodeTextEditor::CodeTextEditor() {
 	ScrollContainer *scroll = memnew(ScrollContainer);
 	scroll->set_h_size_flags(SIZE_EXPAND_FILL);
 	scroll->set_v_size_flags(SIZE_EXPAND_FILL);
-	scroll->set_enable_v_scroll(false);
+	scroll->set_vertical_scroll_mode(ScrollContainer::SCROLL_MODE_DISABLED);
 	status_bar->add_child(scroll);
 
 	error = memnew(Label);
@@ -1872,10 +1886,6 @@ CodeTextEditor::CodeTextEditor() {
 	error_button->connect("pressed", callable_mp(this, &CodeTextEditor::_error_button_pressed));
 	error_button->set_tooltip(TTR("Errors"));
 
-	error_button->add_theme_color_override("font_color", EditorNode::get_singleton()->get_gui_base()->get_theme_color(SNAME("error_color"), SNAME("Editor")));
-	error_button->add_theme_font_override("font", EditorNode::get_singleton()->get_gui_base()->get_theme_font(SNAME("status_source"), SNAME("EditorFonts")));
-	error_button->add_theme_font_size_override("font_size", EditorNode::get_singleton()->get_gui_base()->get_theme_font_size(SNAME("status_source_size"), SNAME("EditorFonts")));
-
 	is_errors_panel_opened = false;
 	set_error_count(0);
 
@@ -1888,10 +1898,6 @@ CodeTextEditor::CodeTextEditor() {
 	warning_button->connect("pressed", callable_mp(this, &CodeTextEditor::_warning_button_pressed));
 	warning_button->set_tooltip(TTR("Warnings"));
 
-	warning_button->add_theme_color_override("font_color", EditorNode::get_singleton()->get_gui_base()->get_theme_color(SNAME("warning_color"), SNAME("Editor")));
-	warning_button->add_theme_font_override("font", EditorNode::get_singleton()->get_gui_base()->get_theme_font(SNAME("status_source"), SNAME("EditorFonts")));
-	warning_button->add_theme_font_size_override("font_size", EditorNode::get_singleton()->get_gui_base()->get_theme_font_size(SNAME("status_source_size"), SNAME("EditorFonts")));
-
 	is_warnings_panel_opened = false;
 	set_warning_count(0);
 
@@ -1899,15 +1905,13 @@ CodeTextEditor::CodeTextEditor() {
 	line_and_col_txt = memnew(Label);
 	status_bar->add_child(line_and_col_txt);
 	line_and_col_txt->set_v_size_flags(SIZE_EXPAND | SIZE_SHRINK_CENTER);
-	line_and_col_txt->add_theme_font_override("font", EditorNode::get_singleton()->get_gui_base()->get_theme_font(SNAME("status_source"), SNAME("EditorFonts")));
-	line_and_col_txt->add_theme_font_size_override("font_size", EditorNode::get_singleton()->get_gui_base()->get_theme_font_size(SNAME("status_source_size"), SNAME("EditorFonts")));
 	line_and_col_txt->set_tooltip(TTR("Line and column numbers."));
 	line_and_col_txt->set_mouse_filter(MOUSE_FILTER_STOP);
 
 	text_editor->connect("gui_input", callable_mp(this, &CodeTextEditor::_text_editor_gui_input));
 	text_editor->connect("caret_changed", callable_mp(this, &CodeTextEditor::_line_col_changed));
 	text_editor->connect("text_changed", callable_mp(this, &CodeTextEditor::_text_changed));
-	text_editor->connect("request_code_completion", callable_mp(this, &CodeTextEditor::_complete_request));
+	text_editor->connect("code_completion_requested", callable_mp(this, &CodeTextEditor::_complete_request));
 	TypedArray<String> cs;
 	cs.push_back(".");
 	cs.push_back(",");
@@ -1931,4 +1935,5 @@ CodeTextEditor::CodeTextEditor() {
 	font_resize_timer->connect("timeout", callable_mp(this, &CodeTextEditor::_font_resize_timeout));
 
 	EditorSettings::get_singleton()->connect("settings_changed", callable_mp(this, &CodeTextEditor::_on_settings_change));
+	add_theme_constant_override("separation", 4 * EDSCALE);
 }

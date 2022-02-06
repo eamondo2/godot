@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -52,12 +52,6 @@ public:
 		CELL_MODE_CUSTOM, ///< Contains a custom value, show a string, and an edit button
 	};
 
-	enum TextAlign {
-		ALIGN_LEFT,
-		ALIGN_CENTER,
-		ALIGN_RIGHT
-	};
-
 private:
 	friend class Tree;
 
@@ -98,7 +92,7 @@ private:
 		Size2i cached_minimum_size;
 		bool cached_minimum_size_dirty = true;
 
-		TextAlign text_align = ALIGN_LEFT;
+		HorizontalAlignment text_alignment = HORIZONTAL_ALIGNMENT_LEFT;
 
 		Variant meta;
 		String tooltip;
@@ -194,16 +188,6 @@ protected:
 
 		return d;
 	}
-	void _remove_child(Object *p_child) {
-		remove_child(Object::cast_to<TreeItem>(p_child));
-	}
-
-	void _move_before(Object *p_item) {
-		move_before(Object::cast_to<TreeItem>(p_item));
-	}
-	void _move_after(Object *p_item) {
-		move_after(Object::cast_to<TreeItem>(p_item));
-	}
 
 	Variant _call_recursive_bind(const Variant **p_args, int p_argcount, Callable::CallError &r_error);
 
@@ -218,6 +202,14 @@ public:
 	bool is_checked(int p_column) const;
 	bool is_indeterminate(int p_column) const;
 
+	void propagate_check(int p_column, bool p_emit_signal = true);
+
+private:
+	// Check helpers.
+	void _propagate_check_through_children(int p_column, bool p_checked, bool p_emit_signal);
+	void _propagate_check_through_parents(int p_column, bool p_emit_signal);
+
+public:
 	void set_text(int p_column, String p_text);
 	String get_text(int p_column) const;
 
@@ -316,8 +308,8 @@ public:
 	void set_tooltip(int p_column, const String &p_tooltip);
 	String get_tooltip(int p_column) const;
 
-	void set_text_align(int p_column, TextAlign p_align);
-	TextAlign get_text_align(int p_column) const;
+	void set_text_alignment(int p_column, HorizontalAlignment p_alignment);
+	HorizontalAlignment get_text_alignment(int p_column) const;
 
 	void set_expand_right(int p_column, bool p_enable);
 	bool get_expand_right(int p_column) const;
@@ -359,7 +351,6 @@ public:
 };
 
 VARIANT_ENUM_CAST(TreeItem::TreeCellMode);
-VARIANT_ENUM_CAST(TreeItem::TextAlign);
 
 class VBoxContainer;
 
@@ -615,23 +606,6 @@ private:
 
 protected:
 	static void _bind_methods();
-
-	//bind helpers
-	TreeItem *_create_item(Object *p_parent, int p_idx = -1) {
-		return create_item(Object::cast_to<TreeItem>(p_parent), p_idx);
-	}
-
-	TreeItem *_get_next_selected(Object *p_item) {
-		return get_next_selected(Object::cast_to<TreeItem>(p_item));
-	}
-
-	Rect2 _get_item_rect(Object *p_item, int p_column) const {
-		return get_item_rect(Object::cast_to<TreeItem>(p_item), p_column);
-	}
-
-	void _scroll_to_item(Object *p_item) {
-		scroll_to_item(Object::cast_to<TreeItem>(p_item));
-	}
 
 public:
 	virtual void gui_input(const Ref<InputEvent> &p_event) override;

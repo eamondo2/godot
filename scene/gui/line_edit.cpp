@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -227,7 +227,7 @@ void LineEdit::gui_input(const Ref<InputEvent> &p_event) {
 		}
 		if (b->is_pressed() && b->get_button_index() == MouseButton::RIGHT && context_menu_enabled) {
 			_ensure_menu();
-			menu->set_position(get_screen_transform().xform(get_local_mouse_position()));
+			menu->set_position(get_screen_position() + get_local_mouse_position());
 			menu->reset_size();
 			menu->popup();
 			grab_focus();
@@ -392,7 +392,7 @@ void LineEdit::gui_input(const Ref<InputEvent> &p_event) {
 			if (k->is_action("ui_menu", true)) {
 				_ensure_menu();
 				Point2 pos = Point2(get_caret_pixel_pos().x, (get_size().y + get_theme_font(SNAME("font"))->get_height(get_theme_font_size(SNAME("font_size")))) / 2);
-				menu->set_position(get_global_transform().xform(pos));
+				menu->set_position(get_screen_position() + pos);
 				menu->reset_size();
 				menu->popup();
 				menu->grab_focus();
@@ -548,17 +548,17 @@ void LineEdit::gui_input(const Ref<InputEvent> &p_event) {
 	}
 }
 
-void LineEdit::set_align(Align p_align) {
-	ERR_FAIL_INDEX((int)p_align, 4);
-	if (align != p_align) {
-		align = p_align;
+void LineEdit::set_horizontal_alignment(HorizontalAlignment p_alignment) {
+	ERR_FAIL_INDEX((int)p_alignment, 4);
+	if (alignment != p_alignment) {
+		alignment = p_alignment;
 		_shape();
 	}
 	update();
 }
 
-LineEdit::Align LineEdit::get_align() const {
-	return align;
+HorizontalAlignment LineEdit::get_horizontal_alignment() const {
+	return alignment;
 }
 
 Variant LineEdit::get_drag_data(const Point2 &p_point) {
@@ -715,23 +715,23 @@ void LineEdit::_notification(int p_what) {
 			float text_width = TS->shaped_text_get_size(text_rid).x;
 			float text_height = TS->shaped_text_get_size(text_rid).y + font->get_spacing(TextServer::SPACING_TOP) + font->get_spacing(TextServer::SPACING_BOTTOM);
 
-			switch (align) {
-				case ALIGN_FILL:
-				case ALIGN_LEFT: {
+			switch (alignment) {
+				case HORIZONTAL_ALIGNMENT_FILL:
+				case HORIZONTAL_ALIGNMENT_LEFT: {
 					if (rtl) {
 						x_ofs = MAX(style->get_margin(SIDE_LEFT), int(size.width - style->get_margin(SIDE_RIGHT) - (text_width)));
 					} else {
 						x_ofs = style->get_offset().x;
 					}
 				} break;
-				case ALIGN_CENTER: {
+				case HORIZONTAL_ALIGNMENT_CENTER: {
 					if (scroll_offset != 0) {
 						x_ofs = style->get_offset().x;
 					} else {
 						x_ofs = MAX(style->get_margin(SIDE_LEFT), int(size.width - (text_width)) / 2);
 					}
 				} break;
-				case ALIGN_RIGHT: {
+				case HORIZONTAL_ALIGNMENT_RIGHT: {
 					if (rtl) {
 						x_ofs = style->get_offset().x;
 					} else {
@@ -752,7 +752,7 @@ void LineEdit::_notification(int p_what) {
 
 			// Draw placeholder color.
 			if (using_placeholder) {
-				font_color.a *= placeholder_alpha;
+				font_color = get_theme_color(SNAME("font_placeholder_color"));
 			}
 
 			bool display_clear_icon = !using_placeholder && is_editable() && clear_button_enabled;
@@ -769,7 +769,7 @@ void LineEdit::_notification(int p_what) {
 
 				r_icon->draw(ci, Point2(width - r_icon->get_width() - style->get_margin(SIDE_RIGHT), height / 2 - r_icon->get_height() / 2), color_icon);
 
-				if (align == ALIGN_CENTER) {
+				if (alignment == HORIZONTAL_ALIGNMENT_CENTER) {
 					if (scroll_offset == 0) {
 						x_ofs = MAX(style->get_margin(SIDE_LEFT), int(size.width - text_width - r_icon->get_width() - style->get_margin(SIDE_RIGHT) * 2) / 2);
 					}
@@ -779,8 +779,6 @@ void LineEdit::_notification(int p_what) {
 
 				ofs_max -= r_icon->get_width();
 			}
-
-			int caret_width = Math::round(1 * get_theme_default_base_scale());
 
 			// Draw selections rects.
 			Vector2 ofs = Point2(x_ofs + scroll_offset, y_ofs);
@@ -843,6 +841,8 @@ void LineEdit::_notification(int p_what) {
 			// Draw carets.
 			ofs.x = x_ofs + scroll_offset;
 			if (draw_caret || drag_caret_force_displayed) {
+				const int caret_width = get_theme_constant(SNAME("caret_width")) * get_theme_default_base_scale();
+
 				if (ime_text.length() == 0) {
 					// Normal caret.
 					CaretInfo caret = TS->shaped_text_get_carets(text_rid, caret_column);
@@ -1017,7 +1017,7 @@ void LineEdit::paste_text() {
 	// Strip escape characters like \n and \t as they can't be displayed on LineEdit.
 	String paste_buffer = DisplayServer::get_singleton()->clipboard_get().strip_escapes();
 
-	if (paste_buffer != "") {
+	if (!paste_buffer.is_empty()) {
 		int prev_len = text.length();
 		if (selection.enabled) {
 			selection_delete();
@@ -1115,23 +1115,23 @@ void LineEdit::set_caret_at_pixel_pos(int p_x) {
 
 	int x_ofs = 0;
 	float text_width = TS->shaped_text_get_size(text_rid).x;
-	switch (align) {
-		case ALIGN_FILL:
-		case ALIGN_LEFT: {
+	switch (alignment) {
+		case HORIZONTAL_ALIGNMENT_FILL:
+		case HORIZONTAL_ALIGNMENT_LEFT: {
 			if (rtl) {
 				x_ofs = MAX(style->get_margin(SIDE_LEFT), int(get_size().width - style->get_margin(SIDE_RIGHT) - (text_width)));
 			} else {
 				x_ofs = style->get_offset().x;
 			}
 		} break;
-		case ALIGN_CENTER: {
+		case HORIZONTAL_ALIGNMENT_CENTER: {
 			if (scroll_offset != 0) {
 				x_ofs = style->get_offset().x;
 			} else {
 				x_ofs = MAX(style->get_margin(SIDE_LEFT), int(get_size().width - (text_width)) / 2);
 			}
 		} break;
-		case ALIGN_RIGHT: {
+		case HORIZONTAL_ALIGNMENT_RIGHT: {
 			if (rtl) {
 				x_ofs = style->get_offset().x;
 			} else {
@@ -1144,7 +1144,7 @@ void LineEdit::set_caret_at_pixel_pos(int p_x) {
 	bool display_clear_icon = !using_placeholder && is_editable() && clear_button_enabled;
 	if (right_icon.is_valid() || display_clear_icon) {
 		Ref<Texture2D> r_icon = display_clear_icon ? Control::get_theme_icon(SNAME("clear")) : right_icon;
-		if (align == ALIGN_CENTER) {
+		if (alignment == HORIZONTAL_ALIGNMENT_CENTER) {
 			if (scroll_offset == 0) {
 				x_ofs = MAX(style->get_margin(SIDE_LEFT), int(get_size().width - text_width - r_icon->get_width() - style->get_margin(SIDE_RIGHT) * 2) / 2);
 			}
@@ -1163,23 +1163,23 @@ Vector2i LineEdit::get_caret_pixel_pos() {
 
 	int x_ofs = 0;
 	float text_width = TS->shaped_text_get_size(text_rid).x;
-	switch (align) {
-		case ALIGN_FILL:
-		case ALIGN_LEFT: {
+	switch (alignment) {
+		case HORIZONTAL_ALIGNMENT_FILL:
+		case HORIZONTAL_ALIGNMENT_LEFT: {
 			if (rtl) {
 				x_ofs = MAX(style->get_margin(SIDE_LEFT), int(get_size().width - style->get_margin(SIDE_RIGHT) - (text_width)));
 			} else {
 				x_ofs = style->get_offset().x;
 			}
 		} break;
-		case ALIGN_CENTER: {
+		case HORIZONTAL_ALIGNMENT_CENTER: {
 			if (scroll_offset != 0) {
 				x_ofs = style->get_offset().x;
 			} else {
 				x_ofs = MAX(style->get_margin(SIDE_LEFT), int(get_size().width - (text_width)) / 2);
 			}
 		} break;
-		case ALIGN_RIGHT: {
+		case HORIZONTAL_ALIGNMENT_RIGHT: {
 			if (rtl) {
 				x_ofs = style->get_offset().x;
 			} else {
@@ -1192,7 +1192,7 @@ Vector2i LineEdit::get_caret_pixel_pos() {
 	bool display_clear_icon = !using_placeholder && is_editable() && clear_button_enabled;
 	if (right_icon.is_valid() || display_clear_icon) {
 		Ref<Texture2D> r_icon = display_clear_icon ? Control::get_theme_icon(SNAME("clear")) : right_icon;
-		if (align == ALIGN_CENTER) {
+		if (alignment == HORIZONTAL_ALIGNMENT_CENTER) {
 			if (scroll_offset == 0) {
 				x_ofs = MAX(style->get_margin(SIDE_LEFT), int(get_size().width - text_width - r_icon->get_width() - style->get_margin(SIDE_RIGHT) * 2) / 2);
 			}
@@ -1476,15 +1476,6 @@ String LineEdit::get_placeholder() const {
 	return placeholder;
 }
 
-void LineEdit::set_placeholder_alpha(float p_alpha) {
-	placeholder_alpha = p_alpha;
-	update();
-}
-
-float LineEdit::get_placeholder_alpha() const {
-	return placeholder_alpha;
-}
-
 void LineEdit::set_caret_column(int p_column) {
 	if (p_column > (int)text.length()) {
 		p_column = text.length();
@@ -1508,23 +1499,23 @@ void LineEdit::set_caret_column(int p_column) {
 
 	int x_ofs = 0;
 	float text_width = TS->shaped_text_get_size(text_rid).x;
-	switch (align) {
-		case ALIGN_FILL:
-		case ALIGN_LEFT: {
+	switch (alignment) {
+		case HORIZONTAL_ALIGNMENT_FILL:
+		case HORIZONTAL_ALIGNMENT_LEFT: {
 			if (rtl) {
 				x_ofs = MAX(style->get_margin(SIDE_LEFT), int(get_size().width - style->get_margin(SIDE_RIGHT) - (text_width)));
 			} else {
 				x_ofs = style->get_offset().x;
 			}
 		} break;
-		case ALIGN_CENTER: {
+		case HORIZONTAL_ALIGNMENT_CENTER: {
 			if (scroll_offset != 0) {
 				x_ofs = style->get_offset().x;
 			} else {
 				x_ofs = MAX(style->get_margin(SIDE_LEFT), int(get_size().width - (text_width)) / 2);
 			}
 		} break;
-		case ALIGN_RIGHT: {
+		case HORIZONTAL_ALIGNMENT_RIGHT: {
 			if (rtl) {
 				x_ofs = style->get_offset().x;
 			} else {
@@ -1538,7 +1529,7 @@ void LineEdit::set_caret_column(int p_column) {
 	bool display_clear_icon = !using_placeholder && is_editable() && clear_button_enabled;
 	if (right_icon.is_valid() || display_clear_icon) {
 		Ref<Texture2D> r_icon = display_clear_icon ? Control::get_theme_icon(SNAME("clear")) : right_icon;
-		if (align == ALIGN_CENTER) {
+		if (alignment == HORIZONTAL_ALIGNMENT_CENTER) {
 			if (scroll_offset == 0) {
 				x_ofs = MAX(style->get_margin(SIDE_LEFT), int(get_size().width - text_width - r_icon->get_width() - style->get_margin(SIDE_RIGHT) * 2) / 2);
 			}
@@ -1718,7 +1709,7 @@ void LineEdit::set_editable(bool p_editable) {
 
 	editable = p_editable;
 
-	minimum_size_changed();
+	update_minimum_size();
 	update();
 }
 
@@ -1948,7 +1939,7 @@ void LineEdit::_editor_settings_changed() {
 
 void LineEdit::set_expand_to_text_length_enabled(bool p_enabled) {
 	expand_to_text_length = p_enabled;
-	minimum_size_changed();
+	update_minimum_size();
 	set_caret_column(caret_column);
 }
 
@@ -1962,7 +1953,7 @@ void LineEdit::set_clear_button_enabled(bool p_enabled) {
 	}
 	clear_button_enabled = p_enabled;
 	_fit_to_width();
-	minimum_size_changed();
+	update_minimum_size();
 	update();
 }
 
@@ -2023,7 +2014,7 @@ void LineEdit::set_right_icon(const Ref<Texture2D> &p_icon) {
 	}
 	right_icon = p_icon;
 	_fit_to_width();
-	minimum_size_changed();
+	update_minimum_size();
 	update();
 }
 
@@ -2078,7 +2069,7 @@ void LineEdit::_shape() {
 	const Ref<Font> &font = get_theme_font(SNAME("font"));
 	int font_size = get_theme_font_size(SNAME("font_size"));
 	ERR_FAIL_COND(font.is_null());
-	TS->shaped_text_add_string(text_rid, t, font->get_rids(), font_size, opentype_features, (language != "") ? language : TranslationServer::get_singleton()->get_tool_locale());
+	TS->shaped_text_add_string(text_rid, t, font->get_rids(), font_size, opentype_features, (!language.is_empty()) ? language : TranslationServer::get_singleton()->get_tool_locale());
 	TS->shaped_text_set_bidi_override(text_rid, structured_text_parser(st_parser, st_args, t));
 
 	full_width = TS->shaped_text_get_size(text_rid).x;
@@ -2087,12 +2078,12 @@ void LineEdit::_shape() {
 	Size2 size = TS->shaped_text_get_size(text_rid);
 
 	if ((expand_to_text_length && old_size.x != size.x) || (old_size.y != size.y)) {
-		minimum_size_changed();
+		update_minimum_size();
 	}
 }
 
 void LineEdit::_fit_to_width() {
-	if (align == ALIGN_FILL) {
+	if (alignment == HORIZONTAL_ALIGNMENT_FILL) {
 		Ref<StyleBox> style = get_theme_stylebox(SNAME("normal"));
 		int t_width = get_size().width - style->get_margin(SIDE_RIGHT) - style->get_margin(SIDE_LEFT);
 		bool using_placeholder = text.is_empty() && ime_text.is_empty();
@@ -2164,7 +2155,7 @@ bool LineEdit::_set(const StringName &p_name, const Variant &p_value) {
 	if (str.begins_with("opentype_features/")) {
 		String name = str.get_slicec('/', 1);
 		int32_t tag = TS->name_to_tag(name);
-		double value = p_value;
+		int value = p_value;
 		if (value == -1) {
 			if (opentype_features.has(tag)) {
 				opentype_features.erase(tag);
@@ -2172,7 +2163,7 @@ bool LineEdit::_set(const StringName &p_name, const Variant &p_value) {
 				update();
 			}
 		} else {
-			if ((double)opentype_features[tag] != value) {
+			if (!opentype_features.has(tag) || (int)opentype_features[tag] != value) {
 				opentype_features[tag] = value;
 				_shape();
 				update();
@@ -2204,7 +2195,7 @@ bool LineEdit::_get(const StringName &p_name, Variant &r_ret) const {
 void LineEdit::_get_property_list(List<PropertyInfo> *p_list) const {
 	for (const Variant *ftr = opentype_features.next(nullptr); ftr != nullptr; ftr = opentype_features.next(ftr)) {
 		String name = TS->tag_to_name(*ftr);
-		p_list->push_back(PropertyInfo(Variant::FLOAT, "opentype_features/" + name));
+		p_list->push_back(PropertyInfo(Variant::INT, "opentype_features/" + name));
 	}
 	p_list->push_back(PropertyInfo(Variant::NIL, "opentype_features/_new", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_EDITOR));
 }
@@ -2218,8 +2209,8 @@ void LineEdit::_validate_property(PropertyInfo &property) const {
 void LineEdit::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_text_changed"), &LineEdit::_text_changed);
 
-	ClassDB::bind_method(D_METHOD("set_align", "align"), &LineEdit::set_align);
-	ClassDB::bind_method(D_METHOD("get_align"), &LineEdit::get_align);
+	ClassDB::bind_method(D_METHOD("set_horizontal_alignment", "alignment"), &LineEdit::set_horizontal_alignment);
+	ClassDB::bind_method(D_METHOD("get_horizontal_alignment"), &LineEdit::get_horizontal_alignment);
 
 	ClassDB::bind_method(D_METHOD("clear"), &LineEdit::clear);
 	ClassDB::bind_method(D_METHOD("select", "from", "to"), &LineEdit::select, DEFVAL(0), DEFVAL(-1));
@@ -2245,8 +2236,6 @@ void LineEdit::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_structured_text_bidi_override_options"), &LineEdit::get_structured_text_bidi_override_options);
 	ClassDB::bind_method(D_METHOD("set_placeholder", "text"), &LineEdit::set_placeholder);
 	ClassDB::bind_method(D_METHOD("get_placeholder"), &LineEdit::get_placeholder);
-	ClassDB::bind_method(D_METHOD("set_placeholder_alpha", "alpha"), &LineEdit::set_placeholder_alpha);
-	ClassDB::bind_method(D_METHOD("get_placeholder_alpha"), &LineEdit::get_placeholder_alpha);
 	ClassDB::bind_method(D_METHOD("set_caret_column", "position"), &LineEdit::set_caret_column);
 	ClassDB::bind_method(D_METHOD("get_caret_column"), &LineEdit::get_caret_column);
 	ClassDB::bind_method(D_METHOD("get_scroll_offset"), &LineEdit::get_scroll_offset);
@@ -2297,11 +2286,6 @@ void LineEdit::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("text_change_rejected", PropertyInfo(Variant::STRING, "rejected_substring")));
 	ADD_SIGNAL(MethodInfo("text_submitted", PropertyInfo(Variant::STRING, "new_text")));
 
-	BIND_ENUM_CONSTANT(ALIGN_LEFT);
-	BIND_ENUM_CONSTANT(ALIGN_CENTER);
-	BIND_ENUM_CONSTANT(ALIGN_RIGHT);
-	BIND_ENUM_CONSTANT(ALIGN_FILL);
-
 	BIND_ENUM_CONSTANT(MENU_CUT);
 	BIND_ENUM_CONSTANT(MENU_COPY);
 	BIND_ENUM_CONSTANT(MENU_PASTE);
@@ -2333,7 +2317,8 @@ void LineEdit::_bind_methods() {
 	BIND_ENUM_CONSTANT(MENU_MAX);
 
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "text"), "set_text", "get_text");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "align", PROPERTY_HINT_ENUM, "Left,Center,Right,Fill"), "set_align", "get_align");
+	ADD_PROPERTY(PropertyInfo(Variant::STRING, "placeholder_text"), "set_placeholder", "get_placeholder");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "alignment", PROPERTY_HINT_ENUM, "Left,Center,Right,Fill"), "set_horizontal_alignment", "get_horizontal_alignment");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_length", PROPERTY_HINT_RANGE, "0,1000,1,or_greater"), "set_max_length", "get_max_length");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "editable"), "set_editable", "is_editable");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "secret"), "set_secret", "is_secret");
@@ -2349,14 +2334,11 @@ void LineEdit::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "right_icon", PROPERTY_HINT_RESOURCE_TYPE, "Texture"), "set_right_icon", "get_right_icon");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "flat"), "set_flat", "is_flat");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "text_direction", PROPERTY_HINT_ENUM, "Auto,Left-to-Right,Right-to-Left,Inherited"), "set_text_direction", "get_text_direction");
-	ADD_PROPERTY(PropertyInfo(Variant::STRING, "language"), "set_language", "get_language");
+	ADD_PROPERTY(PropertyInfo(Variant::STRING, "language", PROPERTY_HINT_LOCALE_ID, ""), "set_language", "get_language");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "draw_control_chars"), "set_draw_control_chars", "get_draw_control_chars");
 	ADD_GROUP("Structured Text", "structured_text_");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "structured_text_bidi_override", PROPERTY_HINT_ENUM, "Default,URI,File,Email,List,None,Custom"), "set_structured_text_bidi_override", "get_structured_text_bidi_override");
 	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "structured_text_bidi_override_options"), "set_structured_text_bidi_override_options", "get_structured_text_bidi_override_options");
-	ADD_GROUP("Placeholder", "placeholder_");
-	ADD_PROPERTY(PropertyInfo(Variant::STRING, "placeholder_text"), "set_placeholder", "get_placeholder");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "placeholder_alpha", PROPERTY_HINT_RANGE, "0,1,0.001"), "set_placeholder_alpha", "get_placeholder_alpha");
 	ADD_GROUP("Caret", "caret_");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "caret_blink"), "set_caret_blink_enabled", "is_caret_blink_enabled");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "caret_blink_speed", PROPERTY_HINT_RANGE, "0.1,10,0.01"), "set_caret_blink_speed", "get_caret_blink_speed");

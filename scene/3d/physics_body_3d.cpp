@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -34,8 +34,8 @@
 #include "scene/scene_string_names.h"
 
 void PhysicsBody3D::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("move_and_collide", "linear_velocity", "test_only", "safe_margin", "max_collisions"), &PhysicsBody3D::_move, DEFVAL(false), DEFVAL(0.001), DEFVAL(1));
-	ClassDB::bind_method(D_METHOD("test_move", "from", "linear_velocity", "collision", "safe_margin", "max_collisions"), &PhysicsBody3D::test_move, DEFVAL(Variant()), DEFVAL(0.001), DEFVAL(1));
+	ClassDB::bind_method(D_METHOD("move_and_collide", "distance", "test_only", "safe_margin", "max_collisions"), &PhysicsBody3D::_move, DEFVAL(false), DEFVAL(0.001), DEFVAL(1));
+	ClassDB::bind_method(D_METHOD("test_move", "from", "distance", "collision", "safe_margin", "max_collisions"), &PhysicsBody3D::test_move, DEFVAL(Variant()), DEFVAL(0.001), DEFVAL(1));
 
 	ClassDB::bind_method(D_METHOD("set_axis_lock", "axis", "lock"), &PhysicsBody3D::set_axis_lock);
 	ClassDB::bind_method(D_METHOD("get_axis_lock", "axis"), &PhysicsBody3D::get_axis_lock);
@@ -91,11 +91,8 @@ void PhysicsBody3D::remove_collision_exception_with(Node *p_node) {
 	PhysicsServer3D::get_singleton()->body_remove_collision_exception(get_rid(), collision_object->get_rid());
 }
 
-Ref<KinematicCollision3D> PhysicsBody3D::_move(const Vector3 &p_linear_velocity, bool p_test_only, real_t p_margin, int p_max_collisions) {
-	// Hack in order to work with calling from _process as well as from _physics_process; calling from thread is risky
-	double delta = Engine::get_singleton()->is_in_physics_frame() ? get_physics_process_delta_time() : get_process_delta_time();
-
-	PhysicsServer3D::MotionParameters parameters(get_global_transform(), p_linear_velocity * delta, p_margin);
+Ref<KinematicCollision3D> PhysicsBody3D::_move(const Vector3 &p_distance, bool p_test_only, real_t p_margin, int p_max_collisions) {
+	PhysicsServer3D::MotionParameters parameters(get_global_transform(), p_distance, p_margin);
 	parameters.max_collisions = p_max_collisions;
 
 	PhysicsServer3D::MotionResult result;
@@ -170,7 +167,7 @@ bool PhysicsBody3D::move_and_collide(const PhysicsServer3D::MotionParameters &p_
 	return colliding;
 }
 
-bool PhysicsBody3D::test_move(const Transform3D &p_from, const Vector3 &p_linear_velocity, const Ref<KinematicCollision3D> &r_collision, real_t p_margin, int p_max_collisions) {
+bool PhysicsBody3D::test_move(const Transform3D &p_from, const Vector3 &p_distance, const Ref<KinematicCollision3D> &r_collision, real_t p_margin, int p_max_collisions) {
 	ERR_FAIL_COND_V(!is_inside_tree(), false);
 
 	PhysicsServer3D::MotionResult *r = nullptr;
@@ -182,10 +179,7 @@ bool PhysicsBody3D::test_move(const Transform3D &p_from, const Vector3 &p_linear
 		r = &temp_result;
 	}
 
-	// Hack in order to work with calling from _process as well as from _physics_process; calling from thread is risky
-	double delta = Engine::get_singleton()->is_in_physics_frame() ? get_physics_process_delta_time() : get_process_delta_time();
-
-	PhysicsServer3D::MotionParameters parameters(p_from, p_linear_velocity * delta, p_margin);
+	PhysicsServer3D::MotionParameters parameters(p_from, p_distance, p_margin);
 
 	bool colliding = PhysicsServer3D::get_singleton()->body_test_motion(get_rid(), parameters, r);
 
@@ -875,19 +869,6 @@ int RigidDynamicBody3D::get_max_contacts_reported() const {
 	return max_contacts_reported;
 }
 
-void RigidDynamicBody3D::add_central_force(const Vector3 &p_force) {
-	PhysicsServer3D::get_singleton()->body_add_central_force(get_rid(), p_force);
-}
-
-void RigidDynamicBody3D::add_force(const Vector3 &p_force, const Vector3 &p_position) {
-	PhysicsServer3D *singleton = PhysicsServer3D::get_singleton();
-	singleton->body_add_force(get_rid(), p_force, p_position);
-}
-
-void RigidDynamicBody3D::add_torque(const Vector3 &p_torque) {
-	PhysicsServer3D::get_singleton()->body_add_torque(get_rid(), p_torque);
-}
-
 void RigidDynamicBody3D::apply_central_impulse(const Vector3 &p_impulse) {
 	PhysicsServer3D::get_singleton()->body_apply_central_impulse(get_rid(), p_impulse);
 }
@@ -899,6 +880,48 @@ void RigidDynamicBody3D::apply_impulse(const Vector3 &p_impulse, const Vector3 &
 
 void RigidDynamicBody3D::apply_torque_impulse(const Vector3 &p_impulse) {
 	PhysicsServer3D::get_singleton()->body_apply_torque_impulse(get_rid(), p_impulse);
+}
+
+void RigidDynamicBody3D::apply_central_force(const Vector3 &p_force) {
+	PhysicsServer3D::get_singleton()->body_apply_central_force(get_rid(), p_force);
+}
+
+void RigidDynamicBody3D::apply_force(const Vector3 &p_force, const Vector3 &p_position) {
+	PhysicsServer3D *singleton = PhysicsServer3D::get_singleton();
+	singleton->body_apply_force(get_rid(), p_force, p_position);
+}
+
+void RigidDynamicBody3D::apply_torque(const Vector3 &p_torque) {
+	PhysicsServer3D::get_singleton()->body_apply_torque(get_rid(), p_torque);
+}
+
+void RigidDynamicBody3D::add_constant_central_force(const Vector3 &p_force) {
+	PhysicsServer3D::get_singleton()->body_add_constant_central_force(get_rid(), p_force);
+}
+
+void RigidDynamicBody3D::add_constant_force(const Vector3 &p_force, const Vector3 &p_position) {
+	PhysicsServer3D *singleton = PhysicsServer3D::get_singleton();
+	singleton->body_add_constant_force(get_rid(), p_force, p_position);
+}
+
+void RigidDynamicBody3D::add_constant_torque(const Vector3 &p_torque) {
+	PhysicsServer3D::get_singleton()->body_add_constant_torque(get_rid(), p_torque);
+}
+
+void RigidDynamicBody3D::set_constant_force(const Vector3 &p_force) {
+	PhysicsServer3D::get_singleton()->body_set_constant_force(get_rid(), p_force);
+}
+
+Vector3 RigidDynamicBody3D::get_constant_force() const {
+	return PhysicsServer3D::get_singleton()->body_get_constant_force(get_rid());
+}
+
+void RigidDynamicBody3D::set_constant_torque(const Vector3 &p_torque) {
+	PhysicsServer3D::get_singleton()->body_set_constant_torque(get_rid(), p_torque);
+}
+
+Vector3 RigidDynamicBody3D::get_constant_torque() const {
+	return PhysicsServer3D::get_singleton()->body_get_constant_torque(get_rid());
 }
 
 void RigidDynamicBody3D::set_use_continuous_collision_detection(bool p_enable) {
@@ -1024,13 +1047,23 @@ void RigidDynamicBody3D::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_axis_velocity", "axis_velocity"), &RigidDynamicBody3D::set_axis_velocity);
 
-	ClassDB::bind_method(D_METHOD("add_central_force", "force"), &RigidDynamicBody3D::add_central_force);
-	ClassDB::bind_method(D_METHOD("add_force", "force", "position"), &RigidDynamicBody3D::add_force, Vector3());
-	ClassDB::bind_method(D_METHOD("add_torque", "torque"), &RigidDynamicBody3D::add_torque);
-
 	ClassDB::bind_method(D_METHOD("apply_central_impulse", "impulse"), &RigidDynamicBody3D::apply_central_impulse);
 	ClassDB::bind_method(D_METHOD("apply_impulse", "impulse", "position"), &RigidDynamicBody3D::apply_impulse, Vector3());
 	ClassDB::bind_method(D_METHOD("apply_torque_impulse", "impulse"), &RigidDynamicBody3D::apply_torque_impulse);
+
+	ClassDB::bind_method(D_METHOD("apply_central_force", "force"), &RigidDynamicBody3D::apply_central_force);
+	ClassDB::bind_method(D_METHOD("apply_force", "force", "position"), &RigidDynamicBody3D::apply_force, Vector3());
+	ClassDB::bind_method(D_METHOD("apply_torque", "torque"), &RigidDynamicBody3D::apply_torque);
+
+	ClassDB::bind_method(D_METHOD("add_constant_central_force", "force"), &RigidDynamicBody3D::add_constant_central_force);
+	ClassDB::bind_method(D_METHOD("add_constant_force", "force", "position"), &RigidDynamicBody3D::add_constant_force, Vector3());
+	ClassDB::bind_method(D_METHOD("add_constant_torque", "torque"), &RigidDynamicBody3D::add_constant_torque);
+
+	ClassDB::bind_method(D_METHOD("set_constant_force", "force"), &RigidDynamicBody3D::set_constant_force);
+	ClassDB::bind_method(D_METHOD("get_constant_force"), &RigidDynamicBody3D::get_constant_force);
+
+	ClassDB::bind_method(D_METHOD("set_constant_torque", "torque"), &RigidDynamicBody3D::set_constant_torque);
+	ClassDB::bind_method(D_METHOD("get_constant_torque"), &RigidDynamicBody3D::get_constant_torque);
 
 	ClassDB::bind_method(D_METHOD("set_sleeping", "sleeping"), &RigidDynamicBody3D::set_sleeping);
 	ClassDB::bind_method(D_METHOD("is_sleeping"), &RigidDynamicBody3D::is_sleeping);
@@ -1075,6 +1108,9 @@ void RigidDynamicBody3D::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "angular_velocity"), "set_angular_velocity", "get_angular_velocity");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "angular_damp_mode", PROPERTY_HINT_ENUM, "Combine,Replace"), "set_angular_damp_mode", "get_angular_damp_mode");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "angular_damp", PROPERTY_HINT_RANGE, "0,100,0.001,or_greater"), "set_angular_damp", "get_angular_damp");
+	ADD_GROUP("Constant Forces", "constant_");
+	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "constant_force"), "set_constant_force", "get_constant_force");
+	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "constant_torque"), "set_constant_torque", "get_constant_torque");
 
 	ADD_SIGNAL(MethodInfo("body_shape_entered", PropertyInfo(Variant::RID, "body_rid"), PropertyInfo(Variant::OBJECT, "body", PROPERTY_HINT_RESOURCE_TYPE, "Node"), PropertyInfo(Variant::INT, "body_shape_index"), PropertyInfo(Variant::INT, "local_shape_index")));
 	ADD_SIGNAL(MethodInfo("body_shape_exited", PropertyInfo(Variant::RID, "body_rid"), PropertyInfo(Variant::OBJECT, "body", PROPERTY_HINT_RESOURCE_TYPE, "Node"), PropertyInfo(Variant::INT, "body_shape_index"), PropertyInfo(Variant::INT, "local_shape_index")));
@@ -1191,7 +1227,7 @@ bool CharacterBody3D::move_and_slide() {
 	if (motion_mode == MOTION_MODE_GROUNDED) {
 		_move_and_slide_grounded(delta, was_on_floor);
 	} else {
-		_move_and_slide_free(delta);
+		_move_and_slide_floating(delta);
 	}
 
 	// Compute real velocity.
@@ -1470,7 +1506,7 @@ void CharacterBody3D::_move_and_slide_grounded(double p_delta, bool p_was_on_flo
 	}
 }
 
-void CharacterBody3D::_move_and_slide_free(double p_delta) {
+void CharacterBody3D::_move_and_slide_floating(double p_delta) {
 	Vector3 motion = motion_velocity * p_delta;
 
 	platform_rid = RID();
@@ -1887,7 +1923,7 @@ const Vector3 &CharacterBody3D::get_up_direction() const {
 }
 
 void CharacterBody3D::set_up_direction(const Vector3 &p_up_direction) {
-	ERR_FAIL_COND_MSG(p_up_direction == Vector3(), "up_direction can't be equal to Vector3.ZERO, consider using Free motion mode instead.");
+	ERR_FAIL_COND_MSG(p_up_direction == Vector3(), "up_direction can't be equal to Vector3.ZERO, consider using Floating motion mode instead.");
 	up_direction = p_up_direction.normalized();
 }
 
@@ -1958,12 +1994,11 @@ void CharacterBody3D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_slide_collision", "slide_idx"), &CharacterBody3D::_get_slide_collision);
 	ClassDB::bind_method(D_METHOD("get_last_slide_collision"), &CharacterBody3D::_get_last_slide_collision);
 
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "motion_mode", PROPERTY_HINT_ENUM, "Grounded,Free", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_UPDATE_ALL_IF_MODIFIED), "set_motion_mode", "get_motion_mode");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "motion_mode", PROPERTY_HINT_ENUM, "Grounded,Floating", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_UPDATE_ALL_IF_MODIFIED), "set_motion_mode", "get_motion_mode");
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "up_direction"), "set_up_direction", "get_up_direction");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "slide_on_ceiling"), "set_slide_on_ceiling_enabled", "is_slide_on_ceiling_enabled");
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "motion_velocity", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_motion_velocity", "get_motion_velocity");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_slides", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_max_slides", "get_max_slides");
-	ADD_GROUP("Free Mode", "free_mode_");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "wall_min_slide_angle", PROPERTY_HINT_RANGE, "0,180,0.1,radians", PROPERTY_USAGE_DEFAULT), "set_wall_min_slide_angle", "get_wall_min_slide_angle");
 	ADD_GROUP("Floor", "floor_");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "floor_stop_on_slope"), "set_floor_stop_on_slope_enabled", "is_floor_stop_on_slope_enabled");
@@ -1978,7 +2013,7 @@ void CharacterBody3D::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "collision/safe_margin", PROPERTY_HINT_RANGE, "0.001,256,0.001"), "set_safe_margin", "get_safe_margin");
 
 	BIND_ENUM_CONSTANT(MOTION_MODE_GROUNDED);
-	BIND_ENUM_CONSTANT(MOTION_MODE_FREE);
+	BIND_ENUM_CONSTANT(MOTION_MODE_FLOATING);
 
 	BIND_ENUM_CONSTANT(PLATFORM_VEL_ON_LEAVE_ALWAYS);
 	BIND_ENUM_CONSTANT(PLATFORM_VEL_ON_LEAVE_UPWARD_ONLY);
@@ -1986,7 +2021,7 @@ void CharacterBody3D::_bind_methods() {
 }
 
 void CharacterBody3D::_validate_property(PropertyInfo &property) const {
-	if (motion_mode == MOTION_MODE_FREE) {
+	if (motion_mode == MOTION_MODE_FLOATING) {
 		if (property.name.begins_with("floor_") || property.name == "up_direction" || property.name == "slide_on_ceiling") {
 			property.usage = PROPERTY_USAGE_NO_EDITOR | PROPERTY_USAGE_INTERNAL;
 		}

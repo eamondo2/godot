@@ -58,16 +58,29 @@
 				Returns a new vector with all components clamped between the components of [code]min[/code] and [code]max[/code], by running [method @GlobalScope.clamp] on each component.
 			</description>
 		</method>
-		<method name="max_axis" qualifiers="const">
-			<return type="int" />
+		<method name="length" qualifiers="const">
+			<return type="float" />
 			<description>
-				Returns the axis of the vector's largest value. See [code]AXIS_*[/code] constants. If all components are equal, this method returns [constant AXIS_X].
+				Returns the length (magnitude) of this vector.
 			</description>
 		</method>
-		<method name="min_axis" qualifiers="const">
+		<method name="length_squared" qualifiers="const">
 			<return type="int" />
 			<description>
-				Returns the axis of the vector's smallest value. See [code]AXIS_*[/code] constants. If all components are equal, this method returns [constant AXIS_Z].
+				Returns the squared length (squared magnitude) of this vector.
+				This method runs faster than [method length], so prefer it if you need to compare vectors or need the squared distance for some formula.
+			</description>
+		</method>
+		<method name="max_axis_index" qualifiers="const">
+			<return type="int" />
+			<description>
+				Returns the axis of the vector's highest value. See [code]AXIS_*[/code] constants. If all components are equal, this method returns [constant AXIS_X].
+			</description>
+		</method>
+		<method name="min_axis_index" qualifiers="const">
+			<return type="int" />
+			<description>
+				Returns the axis of the vector's lowest value. See [code]AXIS_*[/code] constants. If all components are equal, this method returns [constant AXIS_Z].
 			</description>
 		</method>
 		<method name="sign" qualifiers="const">
@@ -90,13 +103,13 @@
 	</members>
 	<constants>
 		<constant name="AXIS_X" value="0">
-			Enumerated value for the X axis.
+			Enumerated value for the X axis. Returned by [method max_axis_index] and [method min_axis_index].
 		</constant>
 		<constant name="AXIS_Y" value="1">
-			Enumerated value for the Y axis.
+			Enumerated value for the Y axis. Returned by [method max_axis_index] and [method min_axis_index].
 		</constant>
 		<constant name="AXIS_Z" value="2">
-			Enumerated value for the Z axis.
+			Enumerated value for the Z axis. Returned by [method max_axis_index] and [method min_axis_index].
 		</constant>
 		<constant name="ZERO" value="Vector3i(0, 0, 0)">
 			Zero vector, a vector with all components set to [code]0[/code].
@@ -167,12 +180,12 @@
 			</description>
 		</operator>
 		<operator name="operator *">
-			<return type="Vector3i" />
+			<return type="Vector3" />
 			<argument index="0" name="right" type="float" />
 			<description>
-				Multiplies each component of the [Vector3i] by the given [float] truncated to an integer.
+				Multiplies each component of the [Vector3i] by the given [float]. Returns a [Vector3].
 				[codeblock]
-				print(Vector3i(10, 20, 30) * 0.9) # Prints "(0, 0, 0)"
+				print(Vector3i(10, 15, 20) * 0.9) # Prints "(9, 13.5, 18)"
 				[/codeblock]
 			</description>
 		</operator>
@@ -214,10 +227,10 @@
 			</description>
 		</operator>
 		<operator name="operator /">
-			<return type="Vector3i" />
+			<return type="Vector3" />
 			<argument index="0" name="right" type="float" />
 			<description>
-				Divides each component of the [Vector3i] by the given [float] truncated to an integer.
+				Divides each component of the [Vector3i] by the given [float]. Returns a [Vector3].
 				[codeblock]
 				print(Vector3i(10, 20, 30) / 2.9) # Prints "(5, 10, 15)"
 				[/codeblock]

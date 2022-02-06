@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -39,6 +39,7 @@
 #ifdef DEBUG_ENABLED
 #include "core/os/os.h"
 #include "core/string/string_builder.h"
+#include "gdscript_warning.h"
 #endif // DEBUG_ENABLED
 
 #ifdef TOOLS_ENABLED
@@ -132,9 +133,9 @@ GDScriptParser::GDScriptParser() {
 	register_annotation(MethodInfo("@export_flags_3d_render"), AnnotationInfo::VARIABLE, &GDScriptParser::export_annotations<PROPERTY_HINT_LAYERS_3D_RENDER, Variant::INT>);
 	register_annotation(MethodInfo("@export_flags_3d_physics"), AnnotationInfo::VARIABLE, &GDScriptParser::export_annotations<PROPERTY_HINT_LAYERS_3D_PHYSICS, Variant::INT>);
 	register_annotation(MethodInfo("@export_flags_3d_navigation"), AnnotationInfo::VARIABLE, &GDScriptParser::export_annotations<PROPERTY_HINT_LAYERS_3D_NAVIGATION, Variant::INT>);
+	register_annotation(MethodInfo("@warning_ignore", { Variant::STRING, "warning" }), AnnotationInfo::CLASS | AnnotationInfo::VARIABLE | AnnotationInfo::SIGNAL | AnnotationInfo::CONSTANT | AnnotationInfo::FUNCTION | AnnotationInfo::STATEMENT, &GDScriptParser::warning_annotations, 0, true);
 	// Networking.
 	register_annotation(MethodInfo("@rpc", { Variant::STRING, "mode" }, { Variant::STRING, "sync" }, { Variant::STRING, "transfer_mode" }, { Variant::INT, "transfer_channel" }), AnnotationInfo::FUNCTION, &GDScriptParser::network_annotations<Multiplayer::RPC_MODE_AUTHORITY>, 4, true);
-	// TODO: Warning annotations.
 }
 
 GDScriptParser::~GDScriptParser() {
@@ -193,6 +194,10 @@ void GDScriptParser::push_warning(const Node *p_source, GDScriptWarning::Code p_
 		return;
 	}
 	if (GLOBAL_GET("debug/gdscript/warnings/exclude_addons").booleanize() && script_path.begins_with("res://addons/")) {
+		return;
+	}
+
+	if (ignored_warning_codes.has(p_code)) {
 		return;
 	}
 
@@ -701,30 +706,37 @@ void GDScriptParser::parse_extends() {
 template <class T>
 void GDScriptParser::parse_class_member(T *(GDScriptParser::*p_parse_function)(), AnnotationInfo::TargetKind p_target, const String &p_member_kind) {
 	advance();
-	T *member = (this->*p_parse_function)();
-	if (member == nullptr) {
-		return;
-	}
+
 #ifdef TOOLS_ENABLED
-	int doc_comment_line = member->start_line - 1;
+	int doc_comment_line = previous.start_line - 1;
 #endif // TOOLS_ENABLED
 
 	// Consume annotations.
+	List<AnnotationNode *> annotations;
 	while (!annotation_stack.is_empty()) {
 		AnnotationNode *last_annotation = annotation_stack.back()->get();
 		if (last_annotation->applies_to(p_target)) {
-			member->annotations.push_front(last_annotation);
+			annotations.push_front(last_annotation);
 			annotation_stack.pop_back();
 		} else {
 			push_error(vformat(R"(Annotation "%s" cannot be applied to a %s.)", last_annotation->name, p_member_kind));
 			clear_unused_annotations();
-			return;
 		}
 #ifdef TOOLS_ENABLED
 		if (last_annotation->start_line == doc_comment_line) {
 			doc_comment_line--;
 		}
 #endif // TOOLS_ENABLED
+	}
+
+	T *member = (this->*p_parse_function)();
+	if (member == nullptr) {
+		return;
+	}
+
+	// Apply annotations.
+	for (AnnotationNode *&annotation : annotations) {
+		member->annotations.push_back(annotation);
 	}
 
 #ifdef TOOLS_ENABLED
@@ -805,6 +817,8 @@ void GDScriptParser::parse_class_body(bool p_is_multiline) {
 				class_end = true;
 				break;
 			default:
+				// Display a completion with identifiers.
+				make_completion_context(COMPLETION_IDENTIFIER, nullptr);
 				push_error(vformat(R"(Unexpected "%s" in class body.)", current.get_name()));
 				advance();
 				break;
@@ -827,24 +841,9 @@ GDScriptParser::VariableNode *GDScriptParser::parse_variable(bool p_allow_proper
 		return nullptr;
 	}
 
-	GDScriptParser::IdentifierNode *identifier = parse_identifier();
-
-#ifdef DEBUG_ENABLED
-	List<MethodInfo> gdscript_funcs;
-	GDScriptLanguage::get_singleton()->get_public_functions(&gdscript_funcs);
-	for (MethodInfo &info : gdscript_funcs) {
-		if (info.name == identifier->name) {
-			push_warning(identifier, GDScriptWarning::SHADOWED_GLOBAL_IDENTIFIER, "local variable", identifier->name, "built-in function");
-		}
-	}
-	if (Variant::has_utility_function(identifier->name)) {
-		push_warning(identifier, GDScriptWarning::SHADOWED_GLOBAL_IDENTIFIER, "local variable", identifier->name, "built-in function");
-	}
-#endif
-
 	VariableNode *variable = alloc_node<VariableNode>();
-	variable->identifier = identifier;
-	variable->export_info.name = identifier->name;
+	variable->identifier = parse_identifier();
+	variable->export_info.name = variable->identifier->name;
 
 	if (match(GDScriptTokenizer::Token::COLON)) {
 		if (check(GDScriptTokenizer::Token::NEWLINE)) {
@@ -1097,24 +1096,8 @@ GDScriptParser::ParameterNode *GDScriptParser::parse_parameter() {
 		return nullptr;
 	}
 
-	GDScriptParser::IdentifierNode *identifier = parse_identifier();
-#ifdef DEBUG_ENABLED
-	List<MethodInfo> gdscript_funcs;
-	GDScriptLanguage::get_singleton()->get_public_functions(&gdscript_funcs);
-	for (MethodInfo &info : gdscript_funcs) {
-		if (info.name == identifier->name) {
-			push_warning(identifier, GDScriptWarning::SHADOWED_GLOBAL_IDENTIFIER, "parameter", identifier->name, "built-in function");
-		}
-	}
-	if (Variant::has_utility_function(identifier->name)) {
-		push_warning(identifier, GDScriptWarning::SHADOWED_GLOBAL_IDENTIFIER, "parameter", identifier->name, "built-in function");
-	} else if (ClassDB::class_exists(identifier->name)) {
-		push_warning(identifier, GDScriptWarning::SHADOWED_GLOBAL_IDENTIFIER, "parameter", identifier->name, "global class");
-	}
-#endif
-
 	ParameterNode *parameter = alloc_node<ParameterNode>();
-	parameter->identifier = identifier;
+	parameter->identifier = parse_identifier();
 
 	if (match(GDScriptTokenizer::Token::COLON)) {
 		if (check((GDScriptTokenizer::Token::EQUAL))) {
@@ -1538,6 +1521,8 @@ GDScriptParser::Node *GDScriptParser::parse_statement() {
 	bool unreachable = current_suite->has_return && !current_suite->has_unreachable_code;
 #endif
 
+	bool is_annotation = false;
+
 	switch (current.type) {
 		case GDScriptTokenizer::Token::PASS:
 			advance();
@@ -1607,6 +1592,7 @@ GDScriptParser::Node *GDScriptParser::parse_statement() {
 			break;
 		case GDScriptTokenizer::Token::ANNOTATION: {
 			advance();
+			is_annotation = true;
 			AnnotationNode *annotation = parse_annotation(AnnotationInfo::STATEMENT);
 			if (annotation != nullptr) {
 				annotation_stack.push_back(annotation);
@@ -1644,6 +1630,18 @@ GDScriptParser::Node *GDScriptParser::parse_statement() {
 			}
 #endif
 			break;
+		}
+	}
+
+	// Apply annotations to statement.
+	while (!is_annotation && result != nullptr && !annotation_stack.is_empty()) {
+		AnnotationNode *last_annotation = annotation_stack.back()->get();
+		if (last_annotation->applies_to(AnnotationInfo::STATEMENT)) {
+			result->annotations.push_front(last_annotation);
+			annotation_stack.pop_back();
+		} else {
+			push_error(vformat(R"(Annotation "%s" cannot be applied to a statement.)", last_annotation->name));
+			clear_unused_annotations();
 		}
 	}
 
@@ -2107,7 +2105,7 @@ GDScriptParser::ExpressionNode *GDScriptParser::parse_precedence(Precedence p_pr
 	ExpressionNode *previous_operand = (this->*prefix_rule)(nullptr, p_can_assign);
 
 	while (p_precedence <= get_rule(current.type)->precedence) {
-		if (p_stop_on_assign && current.type == GDScriptTokenizer::Token::EQUAL) {
+		if (previous_operand == nullptr || (p_stop_on_assign && current.type == GDScriptTokenizer::Token::EQUAL)) {
 			return previous_operand;
 		}
 		// Also switch multiline mode on here for infix operators.
@@ -2415,6 +2413,9 @@ GDScriptParser::ExpressionNode *GDScriptParser::parse_ternary_operator(Expressio
 GDScriptParser::ExpressionNode *GDScriptParser::parse_assignment(ExpressionNode *p_previous_operand, bool p_can_assign) {
 	if (!p_can_assign) {
 		push_error("Assignment is not allowed inside an expression.");
+		return parse_expression(false); // Return the following expression.
+	}
+	if (p_previous_operand == nullptr) {
 		return parse_expression(false); // Return the following expression.
 	}
 
@@ -3100,7 +3101,7 @@ void GDScriptParser::get_class_doc_comment(int p_line, String &p_brief, String &
 	if (!comments.has(p_line)) {
 		return;
 	}
-	ERR_FAIL_COND(p_brief != "" || p_desc != "" || p_tutorials.size() != 0);
+	ERR_FAIL_COND(!p_brief.is_empty() || !p_desc.is_empty() || p_tutorials.size() != 0);
 
 	int line = p_line;
 	bool in_codeblock = false;
@@ -3132,7 +3133,7 @@ void GDScriptParser::get_class_doc_comment(int p_line, String &p_brief, String &
 		String striped_line = doc_line.strip_edges();
 
 		// Set the read mode.
-		if (striped_line.begins_with("@desc:") && p_desc == "") {
+		if (striped_line.begins_with("@desc:") && p_desc.is_empty()) {
 			mode = DESC;
 			striped_line = striped_line.trim_prefix("@desc:");
 			in_codeblock = _in_codeblock(doc_line, in_codeblock);
@@ -3413,7 +3414,7 @@ bool GDScriptParser::validate_annotation_arguments(AnnotationNode *p_annotation)
 					Variant::construct(parameter.type, r, &(name), 1, error);
 					p_annotation->resolved_arguments.push_back(r);
 					if (error.error != Callable::CallError::CALL_OK) {
-						push_error(vformat(R"(Expected %s as argument %d of annotation "%s").)", Variant::get_type_name(parameter.type), i + 1, p_annotation->name));
+						push_error(vformat(R"(Expected %s as argument %d of annotation "%s".)", Variant::get_type_name(parameter.type), i + 1, p_annotation->name));
 						p_annotation->resolved_arguments.remove_at(p_annotation->resolved_arguments.size() - 1);
 						return false;
 					}
@@ -3422,13 +3423,13 @@ bool GDScriptParser::validate_annotation_arguments(AnnotationNode *p_annotation)
 				[[fallthrough]];
 			default: {
 				if (argument->type != Node::LITERAL) {
-					push_error(vformat(R"(Expected %s as argument %d of annotation "%s").)", Variant::get_type_name(parameter.type), i + 1, p_annotation->name));
+					push_error(vformat(R"(Expected %s as argument %d of annotation "%s".)", Variant::get_type_name(parameter.type), i + 1, p_annotation->name));
 					return false;
 				}
 
 				Variant value = static_cast<LiteralNode *>(argument)->value;
 				if (!Variant::can_convert_strict(value.get_type(), parameter.type)) {
-					push_error(vformat(R"(Expected %s as argument %d of annotation "%s").)", Variant::get_type_name(parameter.type), i + 1, p_annotation->name));
+					push_error(vformat(R"(Expected %s as argument %d of annotation "%s".)", Variant::get_type_name(parameter.type), i + 1, p_annotation->name));
 					return false;
 				}
 				Callable::CallError error;
@@ -3437,7 +3438,7 @@ bool GDScriptParser::validate_annotation_arguments(AnnotationNode *p_annotation)
 				Variant::construct(parameter.type, r, &(args), 1, error);
 				p_annotation->resolved_arguments.push_back(r);
 				if (error.error != Callable::CallError::CALL_OK) {
-					push_error(vformat(R"(Expected %s as argument %d of annotation "%s").)", Variant::get_type_name(parameter.type), i + 1, p_annotation->name));
+					push_error(vformat(R"(Expected %s as argument %d of annotation "%s".)", Variant::get_type_name(parameter.type), i + 1, p_annotation->name));
 					p_annotation->resolved_arguments.remove_at(p_annotation->resolved_arguments.size() - 1);
 					return false;
 				}
@@ -3499,7 +3500,7 @@ bool GDScriptParser::export_annotations(const AnnotationNode *p_annotation, Node
 
 	variable->export_info.hint_string = hint_string;
 
-	// This is called after tne analyzer is done finding the type, so this should be set here.
+	// This is called after the analyzer is done finding the type, so this should be set here.
 	DataType export_type = variable->get_datatype();
 
 	if (p_annotation->name == "@export") {
@@ -3541,12 +3542,12 @@ bool GDScriptParser::export_annotations(const AnnotationNode *p_annotation, Node
 				variable->export_info.hint = PROPERTY_HINT_ENUM;
 
 				String enum_hint_string;
-				for (const Map<StringName, int>::Element *E = export_type.enum_values.front(); E; E = E->next()) {
-					enum_hint_string += E->key().operator String().capitalize().xml_escape();
+				for (OrderedHashMap<StringName, int>::Element E = export_type.enum_values.front(); E; E = E.next()) {
+					enum_hint_string += E.key().operator String().capitalize().xml_escape();
 					enum_hint_string += ":";
-					enum_hint_string += String::num_int64(E->get()).xml_escape();
+					enum_hint_string += String::num_int64(E.value()).xml_escape();
 
-					if (E->next()) {
+					if (E.next()) {
 						enum_hint_string += ",";
 					}
 				}
@@ -3583,7 +3584,24 @@ bool GDScriptParser::export_annotations(const AnnotationNode *p_annotation, Node
 }
 
 bool GDScriptParser::warning_annotations(const AnnotationNode *p_annotation, Node *p_node) {
-	ERR_FAIL_V_MSG(false, "Not implemented.");
+#ifdef DEBUG_ENABLED
+	bool has_error = false;
+	for (const Variant &warning_name : p_annotation->resolved_arguments) {
+		GDScriptWarning::Code warning = GDScriptWarning::get_code_from_name(String(warning_name).to_upper());
+		if (warning == GDScriptWarning::WARNING_MAX) {
+			push_error(vformat(R"(Invalid warning name: "%s".)", warning_name), p_annotation);
+			has_error = true;
+		} else {
+			p_node->ignored_warnings.push_back(warning);
+		}
+	}
+
+	return !has_error;
+
+#else // ! DEBUG_ENABLED
+	// Only available in debug builds.
+	return true;
+#endif // DEBUG_ENABLED
 }
 
 template <Multiplayer::RPCMode t_mode>
@@ -3722,8 +3740,6 @@ String GDScriptParser::DataType::to_string() const {
 		}
 		case ENUM:
 			return enum_type.operator String() + " (enum)";
-		case ENUM_VALUE:
-			return enum_type.operator String() + " (enum value)";
 		case UNRESOLVED:
 			return "<unresolved type>";
 	}
@@ -4221,7 +4237,11 @@ void GDScriptParser::TreePrinter::print_get_node(GetNodeNode *p_get_node) {
 }
 
 void GDScriptParser::TreePrinter::print_identifier(IdentifierNode *p_identifier) {
-	push_text(p_identifier->name);
+	if (p_identifier != nullptr) {
+		push_text(p_identifier->name);
+	} else {
+		push_text("<invalid identifier>");
+	}
 }
 
 void GDScriptParser::TreePrinter::print_if(IfNode *p_if, bool p_is_elif) {

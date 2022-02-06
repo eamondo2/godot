@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -161,7 +161,7 @@ Error _create_project_name_strings_files(const Ref<EditorExportPreset> &p_preset
 	da->list_dir_begin();
 	while (true) {
 		String file = da->get_next();
-		if (file == "") {
+		if (file.is_empty()) {
 			break;
 		}
 		if (!file.begins_with("values-")) {
@@ -252,8 +252,10 @@ String _get_activity_tag(const Ref<EditorExportPreset> &p_preset) {
 	String orientation = _get_android_orientation_label(DisplayServer::ScreenOrientation(int(GLOBAL_GET("display/window/handheld/orientation"))));
 	String manifest_activity_text = vformat(
 			"        <activity android:name=\"com.godot.game.GodotApp\" "
-			"tools:replace=\"android:screenOrientation\" "
+			"tools:replace=\"android:screenOrientation,android:excludeFromRecents\" "
+			"android:excludeFromRecents=\"%s\" "
 			"android:screenOrientation=\"%s\">\n",
+			bool_to_string(p_preset->get("package/exclude_from_recents")),
 			orientation);
 	if (uses_xr) {
 		manifest_activity_text += "            <meta-data tools:node=\"replace\" android:name=\"com.oculus.vr.focusaware\" android:value=\"true\" />\n";
@@ -275,14 +277,24 @@ String _get_application_tag(const Ref<EditorExportPreset> &p_preset, bool p_has_
 			"        android:hasFragileUserData=\"%s\"\n"
 			"        android:requestLegacyExternalStorage=\"%s\"\n"
 			"        tools:replace=\"android:allowBackup,android:isGame,android:hasFragileUserData,android:requestLegacyExternalStorage\"\n"
-			"        tools:ignore=\"GoogleAppIndexingWarning\">\n\n",
+			"        tools:ignore=\"GoogleAppIndexingWarning\">\n\n"
+			"        <meta-data tools:node=\"remove\" android:name=\"xr_hand_tracking_metadata_name\" />\n",
 			bool_to_string(p_preset->get("user_data_backup/allow")),
 			bool_to_string(p_preset->get("package/classify_as_game")),
 			bool_to_string(p_preset->get("package/retain_data_on_uninstall")),
 			bool_to_string(p_has_storage_permission));
 
 	if (uses_xr) {
-		manifest_application_text += "        <meta-data tools:node=\"replace\" android:name=\"com.samsung.android.vr.application.mode\" android:value=\"vr_only\" />\n";
+		bool hand_tracking_enabled = (int)(p_preset->get("xr_features/hand_tracking")) > XR_HAND_TRACKING_NONE;
+		if (hand_tracking_enabled) {
+			int hand_tracking_frequency_index = p_preset->get("xr_features/hand_tracking_frequency");
+			String hand_tracking_frequency = hand_tracking_frequency_index == XR_HAND_TRACKING_FREQUENCY_LOW ? "LOW" : "HIGH";
+			manifest_application_text += vformat(
+					"        <meta-data tools:node=\"replace\" android:name=\"com.oculus.handtracking.frequency\" android:value=\"%s\" />\n",
+					hand_tracking_frequency);
+		}
+	} else {
+		manifest_application_text += "        <meta-data tools:node=\"remove\" android:name=\"com.oculus.supportedDevices\" />\n";
 	}
 	manifest_application_text += _get_activity_tag(p_preset);
 	manifest_application_text += "    </application>\n";

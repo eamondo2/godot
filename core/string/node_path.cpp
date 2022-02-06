@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -368,7 +368,7 @@ NodePath::NodePath(const String &p_path) {
 		for (int i = from; i <= path.length(); i++) {
 			if (path[i] == ':' || path[i] == 0) {
 				String str = path.substr(from, i - from);
-				if (str == "") {
+				if (str.is_empty()) {
 					if (path[i] == 0) {
 						continue; // Allow end-of-path :
 					}

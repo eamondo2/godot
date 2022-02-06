@@ -76,19 +76,15 @@ layout(set = 0, binding = 10) uniform sampler shadow_sampler;
 #define MAX_VOXEL_GI_INSTANCES 8
 
 struct VoxelGIData {
-	mat4 xform;
-	vec3 bounds;
-	float dynamic_range;
+	mat4 xform; // 64 - 64
 
-	float bias;
-	float normal_bias;
-	bool blend_ambient;
-	uint texture_slot;
+	vec3 bounds; // 12 - 76
+	float dynamic_range; // 4 - 80
 
-	float anisotropy_strength;
-	float ambient_occlusion;
-	float ambient_occlusion_size;
-	uint mipmaps;
+	float bias; // 4 - 84
+	float normal_bias; // 4 - 88
+	bool blend_ambient; // 4 - 92
+	uint mipmaps; // 4 - 96
 };
 
 layout(set = 0, binding = 11, std140) uniform VoxelGIs {
@@ -581,16 +577,29 @@ void main() {
 
 						if (spot_lights.data[light_index].shadow_enabled) {
 							//has shadow
-							vec4 v = vec4(view_pos, 1.0);
+							vec4 uv_rect = spot_lights.data[light_index].atlas_rect;
+							vec2 flip_offset = spot_lights.data[light_index].direction.xy;
 
-							vec4 splane = (spot_lights.data[light_index].shadow_matrix * v);
-							splane /= splane.w;
+							vec3 local_vert = (spot_lights.data[light_index].shadow_matrix * vec4(view_pos, 1.0)).xyz;
 
-							float depth = texture(sampler2D(shadow_atlas, linear_sampler), splane.xy).r;
+							float shadow_len = length(local_vert); //need to remember shadow len from here
+							vec3 shadow_sample = normalize(local_vert);
 
-							shadow_attenuation = exp(min(0.0, (depth - splane.z)) / spot_lights.data[light_index].inv_radius * spot_lights.data[light_index].shadow_volumetric_fog_fade);
+							if (shadow_sample.z >= 0.0) {
+								uv_rect.xy += flip_offset;
+							}
+
+							shadow_sample.z = 1.0 + abs(shadow_sample.z);
+							vec3 pos = vec3(shadow_sample.xy / shadow_sample.z, shadow_len - spot_lights.data[light_index].shadow_bias);
+							pos.z *= spot_lights.data[light_index].inv_radius;
+
+							pos.xy = pos.xy * 0.5 + 0.5;
+							pos.xy = uv_rect.xy + pos.xy * uv_rect.zw;
+
+							float depth = texture(sampler2D(shadow_atlas, linear_sampler), pos.xy).r;
+
+							shadow_attenuation = exp(min(0.0, (depth - pos.z)) / spot_lights.data[light_index].inv_radius * spot_lights.data[light_index].shadow_volumetric_fog_fade);
 						}
-
 						total_light += light * attenuation * shadow_attenuation * henyey_greenstein(dot(normalize(light_rel_vec), normalize(view_pos)), params.phase_g);
 					}
 				}

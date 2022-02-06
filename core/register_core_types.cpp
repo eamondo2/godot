@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -69,7 +69,6 @@
 #include "core/math/triangle_mesh.h"
 #include "core/multiplayer/multiplayer_api.h"
 #include "core/multiplayer/multiplayer_peer.h"
-#include "core/multiplayer/multiplayer_replicator.h"
 #include "core/object/class_db.h"
 #include "core/object/undo_redo.h"
 #include "core/os/main_loop.h"
@@ -199,8 +198,7 @@ void register_core_types() {
 	ResourceLoader::add_resource_format_loader(resource_format_loader_crypto);
 
 	GDREGISTER_VIRTUAL_CLASS(MultiplayerPeer);
-	GDREGISTER_VIRTUAL_CLASS(MultiplayerPeerExtension);
-	GDREGISTER_VIRTUAL_CLASS(MultiplayerReplicator);
+	GDREGISTER_CLASS(MultiplayerPeerExtension);
 	GDREGISTER_CLASS(MultiplayerAPI);
 	GDREGISTER_CLASS(MainLoop);
 	GDREGISTER_CLASS(Translation);

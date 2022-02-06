@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -166,6 +166,10 @@ void EditorInterface::edit_node(Node *p_node) {
 	EditorNode::get_singleton()->edit_node(p_node);
 }
 
+void EditorInterface::edit_script(const Ref<Script> &p_script, int p_line, int p_col, bool p_grab_focus) {
+	ScriptEditor::get_singleton()->edit(p_script, p_line, p_col, p_grab_focus);
+}
+
 void EditorInterface::open_scene_from_path(const String &scene_path) {
 	if (EditorNode::get_singleton()->is_changing_scene()) {
 		return;
@@ -229,15 +233,15 @@ ScriptEditor *EditorInterface::get_script_editor() {
 }
 
 void EditorInterface::select_file(const String &p_file) {
-	EditorNode::get_singleton()->get_filesystem_dock()->select_file(p_file);
+	FileSystemDock::get_singleton()->select_file(p_file);
 }
 
 String EditorInterface::get_selected_path() const {
-	return EditorNode::get_singleton()->get_filesystem_dock()->get_selected_path();
+	return FileSystemDock::get_singleton()->get_selected_path();
 }
 
 String EditorInterface::get_current_path() const {
-	return EditorNode::get_singleton()->get_filesystem_dock()->get_current_path();
+	return FileSystemDock::get_singleton()->get_current_path();
 }
 
 void EditorInterface::inspect_object(Object *p_obj, const String &p_for_property, bool p_inspector_only) {
@@ -249,7 +253,7 @@ EditorFileSystem *EditorInterface::get_resource_file_system() {
 }
 
 FileSystemDock *EditorInterface::get_file_system_dock() {
-	return EditorNode::get_singleton()->get_filesystem_dock();
+	return FileSystemDock::get_singleton();
 }
 
 EditorSelection *EditorInterface::get_selection() {
@@ -284,14 +288,14 @@ bool EditorInterface::is_plugin_enabled(const String &p_plugin) const {
 }
 
 EditorInspector *EditorInterface::get_inspector() const {
-	return EditorNode::get_singleton()->get_inspector();
+	return InspectorDock::get_inspector_singleton();
 }
 
 Error EditorInterface::save_scene() {
 	if (!get_edited_scene_root()) {
 		return ERR_CANT_CREATE;
 	}
-	if (get_edited_scene_root()->get_scene_file_path() == String()) {
+	if (get_edited_scene_root()->get_scene_file_path().is_empty()) {
 		return ERR_CANT_CREATE;
 	}
 
@@ -326,6 +330,7 @@ void EditorInterface::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_editor_scale"), &EditorInterface::get_editor_scale);
 	ClassDB::bind_method(D_METHOD("edit_resource", "resource"), &EditorInterface::edit_resource);
 	ClassDB::bind_method(D_METHOD("edit_node", "node"), &EditorInterface::edit_node);
+	ClassDB::bind_method(D_METHOD("edit_script", "script", "line", "column", "grab_focus"), &EditorInterface::edit_script, DEFVAL(-1), DEFVAL(0), DEFVAL(true));
 	ClassDB::bind_method(D_METHOD("open_scene_from_path", "scene_filepath"), &EditorInterface::open_scene_from_path);
 	ClassDB::bind_method(D_METHOD("reload_scene_from_path", "scene_filepath"), &EditorInterface::reload_scene_from_path);
 	ClassDB::bind_method(D_METHOD("play_main_scene"), &EditorInterface::play_main_scene);
@@ -416,14 +421,10 @@ void EditorPlugin::add_control_to_container(CustomControlContainer p_location, C
 
 		} break;
 		case CONTAINER_SPATIAL_EDITOR_SIDE_LEFT: {
-			Node3DEditor::get_singleton()->get_palette_split()->add_child(p_control);
-			Node3DEditor::get_singleton()->get_palette_split()->move_child(p_control, 0);
-
+			Node3DEditor::get_singleton()->add_control_to_left_panel(p_control);
 		} break;
 		case CONTAINER_SPATIAL_EDITOR_SIDE_RIGHT: {
-			Node3DEditor::get_singleton()->get_palette_split()->add_child(p_control);
-			Node3DEditor::get_singleton()->get_palette_split()->move_child(p_control, 1);
-
+			Node3DEditor::get_singleton()->add_control_to_right_panel(p_control);
 		} break;
 		case CONTAINER_SPATIAL_EDITOR_BOTTOM: {
 			Node3DEditor::get_singleton()->get_shader_split()->add_child(p_control);
@@ -434,21 +435,17 @@ void EditorPlugin::add_control_to_container(CustomControlContainer p_location, C
 
 		} break;
 		case CONTAINER_CANVAS_EDITOR_SIDE_LEFT: {
-			CanvasItemEditor::get_singleton()->get_palette_split()->add_child(p_control);
-			CanvasItemEditor::get_singleton()->get_palette_split()->move_child(p_control, 0);
-
+			CanvasItemEditor::get_singleton()->add_control_to_left_panel(p_control);
 		} break;
 		case CONTAINER_CANVAS_EDITOR_SIDE_RIGHT: {
-			CanvasItemEditor::get_singleton()->get_palette_split()->add_child(p_control);
-			CanvasItemEditor::get_singleton()->get_palette_split()->move_child(p_control, 1);
-
+			CanvasItemEditor::get_singleton()->add_control_to_right_panel(p_control);
 		} break;
 		case CONTAINER_CANVAS_EDITOR_BOTTOM: {
 			CanvasItemEditor::get_singleton()->get_bottom_split()->add_child(p_control);
 
 		} break;
 		case CONTAINER_PROPERTY_EDITOR_BOTTOM: {
-			EditorNode::get_singleton()->get_inspector_dock_addon_area()->add_child(p_control);
+			InspectorDock::get_singleton()->get_addon_area()->add_child(p_control);
 
 		} break;
 		case CONTAINER_PROJECT_SETTING_TAB_LEFT: {
@@ -476,10 +473,11 @@ void EditorPlugin::remove_control_from_container(CustomControlContainer p_locati
 			Node3DEditor::get_singleton()->remove_control_from_menu_panel(p_control);
 
 		} break;
-		case CONTAINER_SPATIAL_EDITOR_SIDE_LEFT:
+		case CONTAINER_SPATIAL_EDITOR_SIDE_LEFT: {
+			Node3DEditor::get_singleton()->remove_control_from_left_panel(p_control);
+		} break;
 		case CONTAINER_SPATIAL_EDITOR_SIDE_RIGHT: {
-			Node3DEditor::get_singleton()->get_palette_split()->remove_child(p_control);
-
+			Node3DEditor::get_singleton()->remove_control_from_right_panel(p_control);
 		} break;
 		case CONTAINER_SPATIAL_EDITOR_BOTTOM: {
 			Node3DEditor::get_singleton()->get_shader_split()->remove_child(p_control);
@@ -489,17 +487,18 @@ void EditorPlugin::remove_control_from_container(CustomControlContainer p_locati
 			CanvasItemEditor::get_singleton()->remove_control_from_menu_panel(p_control);
 
 		} break;
-		case CONTAINER_CANVAS_EDITOR_SIDE_LEFT:
+		case CONTAINER_CANVAS_EDITOR_SIDE_LEFT: {
+			CanvasItemEditor::get_singleton()->remove_control_from_left_panel(p_control);
+		} break;
 		case CONTAINER_CANVAS_EDITOR_SIDE_RIGHT: {
-			CanvasItemEditor::get_singleton()->get_palette_split()->remove_child(p_control);
-
+			CanvasItemEditor::get_singleton()->remove_control_from_right_panel(p_control);
 		} break;
 		case CONTAINER_CANVAS_EDITOR_BOTTOM: {
 			CanvasItemEditor::get_singleton()->get_bottom_split()->remove_child(p_control);
 
 		} break;
 		case CONTAINER_PROPERTY_EDITOR_BOTTOM: {
-			EditorNode::get_singleton()->get_inspector_dock_addon_area()->remove_child(p_control);
+			InspectorDock::get_singleton()->get_addon_area()->remove_child(p_control);
 
 		} break;
 		case CONTAINER_PROJECT_SETTING_TAB_LEFT:
@@ -514,11 +513,9 @@ void EditorPlugin::add_tool_menu_item(const String &p_name, const Callable &p_ca
 	EditorNode::get_singleton()->add_tool_menu_item(p_name, p_callable);
 }
 
-void EditorPlugin::add_tool_submenu_item(const String &p_name, Object *p_submenu) {
+void EditorPlugin::add_tool_submenu_item(const String &p_name, PopupMenu *p_submenu) {
 	ERR_FAIL_NULL(p_submenu);
-	PopupMenu *submenu = Object::cast_to<PopupMenu>(p_submenu);
-	ERR_FAIL_NULL(submenu);
-	EditorNode::get_singleton()->add_tool_submenu_item(p_name, submenu);
+	EditorNode::get_singleton()->add_tool_submenu_item(p_name, p_submenu);
 }
 
 void EditorPlugin::remove_tool_menu_item(const String &p_name) {
@@ -834,7 +831,7 @@ EditorInterface *EditorPlugin::get_editor_interface() {
 }
 
 ScriptCreateDialog *EditorPlugin::get_script_create_dialog() {
-	return EditorNode::get_singleton()->get_script_create_dialog();
+	return SceneTreeDock::get_singleton()->get_script_create_dialog();
 }
 
 void EditorPlugin::add_debugger_plugin(const Ref<Script> &p_script) {

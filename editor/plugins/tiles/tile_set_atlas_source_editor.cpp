@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -274,7 +274,7 @@ bool TileSetAtlasSourceEditor::AtlasTileProxyObject::_set(const StringName &p_na
 		const int &alternative = E->get().alternative;
 
 		bool valid = false;
-		TileData *tile_data = Object::cast_to<TileData>(tile_set_atlas_source->get_tile_data(coords, alternative));
+		TileData *tile_data = tile_set_atlas_source->get_tile_data(coords, alternative);
 		ERR_FAIL_COND_V(!tile_data, false);
 		tile_data->set(p_name, p_value, &valid);
 
@@ -359,7 +359,7 @@ bool TileSetAtlasSourceEditor::AtlasTileProxyObject::_get(const StringName &p_na
 		const Vector2i &coords = E->get().tile;
 		const int &alternative = E->get().alternative;
 
-		TileData *tile_data = Object::cast_to<TileData>(tile_set_atlas_source->get_tile_data(coords, alternative));
+		TileData *tile_data = tile_set_atlas_source->get_tile_data(coords, alternative);
 		ERR_FAIL_COND_V(!tile_data, false);
 
 		bool valid = false;
@@ -432,7 +432,7 @@ void TileSetAtlasSourceEditor::AtlasTileProxyObject::_get_property_list(List<Pro
 		const Vector2i &coords = E->get().tile;
 		const int &alternative = E->get().alternative;
 
-		TileData *tile_data = Object::cast_to<TileData>(tile_set_atlas_source->get_tile_data(coords, alternative));
+		TileData *tile_data = tile_set_atlas_source->get_tile_data(coords, alternative);
 		ERR_FAIL_COND(!tile_data);
 
 		List<PropertyInfo> list;
@@ -486,7 +486,7 @@ void TileSetAtlasSourceEditor::AtlasTileProxyObject::edit(TileSetAtlasSource *p_
 		const int &alternative = E->get().alternative;
 
 		if (tile_set_atlas_source && tile_set_atlas_source->has_tile(coords) && tile_set_atlas_source->has_alternative_tile(coords, alternative)) {
-			TileData *tile_data = Object::cast_to<TileData>(tile_set_atlas_source->get_tile_data(coords, alternative));
+			TileData *tile_data = tile_set_atlas_source->get_tile_data(coords, alternative);
 			if (tile_data->is_connected(CoreStringNames::get_singleton()->property_list_changed, callable_mp((Object *)this, &Object::notify_property_list_changed))) {
 				tile_data->disconnect(CoreStringNames::get_singleton()->property_list_changed, callable_mp((Object *)this, &Object::notify_property_list_changed));
 			}
@@ -502,7 +502,7 @@ void TileSetAtlasSourceEditor::AtlasTileProxyObject::edit(TileSetAtlasSource *p_
 		const int &alternative = E->get().alternative;
 
 		if (tile_set_atlas_source->has_tile(coords) && tile_set_atlas_source->has_alternative_tile(coords, alternative)) {
-			TileData *tile_data = Object::cast_to<TileData>(tile_set_atlas_source->get_tile_data(coords, alternative));
+			TileData *tile_data = tile_set_atlas_source->get_tile_data(coords, alternative);
 			if (!tile_data->is_connected(CoreStringNames::get_singleton()->property_list_changed, callable_mp((Object *)this, &Object::notify_property_list_changed))) {
 				tile_data->connect(CoreStringNames::get_singleton()->property_list_changed, callable_mp((Object *)this, &Object::notify_property_list_changed));
 			}
@@ -2321,7 +2321,7 @@ TileSetAtlasSourceEditor::TileSetAtlasSourceEditor() {
 
 	// Middle panel.
 	ScrollContainer *middle_panel = memnew(ScrollContainer);
-	middle_panel->set_enable_h_scroll(false);
+	middle_panel->set_horizontal_scroll_mode(ScrollContainer::SCROLL_MODE_DISABLED);
 	middle_panel->set_custom_minimum_size(Size2i(200, 0) * EDSCALE);
 	split_container_right_side->add_child(middle_panel);
 
@@ -2339,14 +2339,14 @@ TileSetAtlasSourceEditor::TileSetAtlasSourceEditor() {
 
 	tile_inspector = memnew(EditorInspector);
 	tile_inspector->set_undo_redo(undo_redo);
-	tile_inspector->set_enable_v_scroll(false);
+	tile_inspector->set_vertical_scroll_mode(ScrollContainer::SCROLL_MODE_DISABLED);
 	tile_inspector->edit(tile_proxy_object);
 	tile_inspector->set_use_folding(true);
 	tile_inspector->connect("property_selected", callable_mp(this, &TileSetAtlasSourceEditor::_inspector_property_selected));
 	middle_vbox_container->add_child(tile_inspector);
 
 	tile_inspector_no_tile_selected_label = memnew(Label);
-	tile_inspector_no_tile_selected_label->set_align(Label::ALIGN_CENTER);
+	tile_inspector_no_tile_selected_label->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 	tile_inspector_no_tile_selected_label->set_text(TTR("No tile selected."));
 	middle_vbox_container->add_child(tile_inspector_no_tile_selected_label);
 
@@ -2385,7 +2385,7 @@ TileSetAtlasSourceEditor::TileSetAtlasSourceEditor() {
 
 	atlas_source_inspector = memnew(EditorInspector);
 	atlas_source_inspector->set_undo_redo(undo_redo);
-	atlas_source_inspector->set_enable_v_scroll(false);
+	atlas_source_inspector->set_vertical_scroll_mode(ScrollContainer::SCROLL_MODE_DISABLED);
 	atlas_source_inspector->edit(atlas_source_proxy_object);
 	middle_vbox_container->add_child(atlas_source_inspector);
 
@@ -2527,8 +2527,8 @@ TileSetAtlasSourceEditor::TileSetAtlasSourceEditor() {
 
 	tile_atlas_view_missing_source_label = memnew(Label);
 	tile_atlas_view_missing_source_label->set_text(TTR("Add or select an atlas texture to the left panel."));
-	tile_atlas_view_missing_source_label->set_align(Label::ALIGN_CENTER);
-	tile_atlas_view_missing_source_label->set_valign(Label::VALIGN_CENTER);
+	tile_atlas_view_missing_source_label->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+	tile_atlas_view_missing_source_label->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
 	tile_atlas_view_missing_source_label->set_h_size_flags(SIZE_EXPAND_FILL);
 	tile_atlas_view_missing_source_label->set_v_size_flags(SIZE_EXPAND_FILL);
 	tile_atlas_view_missing_source_label->hide();
@@ -2593,7 +2593,7 @@ void EditorPropertyTilePolygon::_polygons_changed() {
 				changed_properties.push_back(vformat(element_pattern, i));
 				values.push_back(generic_tile_polygon_editor->get_polygon(i));
 			}
-			emit_signal("multiple_properties_changed", changed_properties, values, false);
+			emit_signal(SNAME("multiple_properties_changed"), changed_properties, values, false);
 		}
 	}
 }
@@ -2609,7 +2609,7 @@ void EditorPropertyTilePolygon::update_property() {
 	// Set the background
 	Vector2i coords = atlas_tile_proxy_object->get_edited_tiles().front()->get().tile;
 	int alternative = atlas_tile_proxy_object->get_edited_tiles().front()->get().alternative;
-	TileData *tile_data = Object::cast_to<TileData>(tile_set_atlas_source->get_tile_data(coords, alternative));
+	TileData *tile_data = tile_set_atlas_source->get_tile_data(coords, alternative);
 	generic_tile_polygon_editor->set_background(tile_set_atlas_source->get_texture(), tile_set_atlas_source->get_tile_texture_region(coords), tile_set_atlas_source->get_tile_effective_texture_offset(coords, alternative), tile_data->get_flip_h(), tile_data->get_flip_v(), tile_data->get_transpose(), tile_data->get_modulate());
 
 	// Reset the polygons.

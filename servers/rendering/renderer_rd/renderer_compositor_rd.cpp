@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -240,7 +240,7 @@ RendererCompositorRD *RendererCompositorRD::singleton = nullptr;
 RendererCompositorRD::RendererCompositorRD() {
 	{
 		String shader_cache_dir = Engine::get_singleton()->get_shader_cache_path();
-		if (shader_cache_dir == String()) {
+		if (shader_cache_dir.is_empty()) {
 			shader_cache_dir = "user://";
 		}
 		DirAccessRef da = DirAccess::open(shader_cache_dir);
@@ -261,7 +261,7 @@ RendererCompositorRD::RendererCompositorRD() {
 					shader_cache_dir = String(); //disable only if not editor
 				}
 
-				if (shader_cache_dir != String()) {
+				if (!shader_cache_dir.is_empty()) {
 					bool compress = GLOBAL_GET("rendering/shader_compiler/shader_cache/compress");
 					bool use_zstd = GLOBAL_GET("rendering/shader_compiler/shader_cache/use_zstd_compression");
 					bool strip_debug = GLOBAL_GET("rendering/shader_compiler/shader_cache/strip_debug");

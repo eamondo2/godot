@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -53,6 +53,10 @@ static const int XR_MODE_OPENXR = 1;
 static const int XR_HAND_TRACKING_NONE = 0;
 static const int XR_HAND_TRACKING_OPTIONAL = 1;
 static const int XR_HAND_TRACKING_REQUIRED = 2;
+
+// Supported XR hand tracking frequencies.
+static const int XR_HAND_TRACKING_FREQUENCY_LOW = 0;
+static const int XR_HAND_TRACKING_FREQUENCY_HIGH = 1;
 
 // Supported XR passthrough modes.
 static const int XR_PASSTHROUGH_NONE = 0;

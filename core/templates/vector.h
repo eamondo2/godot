@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -33,7 +33,6 @@
 
 /**
  * @class Vector
- * @author Juan Linietsky
  * Vector container. Regular Vector Container. Use with care and for smaller arrays when possible. Use Vector for large arrays.
  */
 
@@ -42,6 +41,9 @@
 #include "core/templates/cowdata.h"
 #include "core/templates/search_array.h"
 #include "core/templates/sort_array.h"
+
+#include <climits>
+#include <initializer_list>
 
 template <class T>
 class VectorWriteProxy {
@@ -93,9 +95,7 @@ public:
 
 	void append_array(Vector<T> p_other);
 
-	bool has(const T &p_val) const {
-		return find(p_val, 0) != -1;
-	}
+	_FORCE_INLINE_ bool has(const T &p_val) const { return find(p_val) != -1; }
 
 	template <class C>
 	void sort_custom() {
@@ -143,27 +143,32 @@ public:
 		return ret;
 	}
 
-	Vector<T> subarray(int p_from, int p_to) const {
-		if (p_from < 0) {
-			p_from = size() + p_from;
-		}
-		if (p_to < 0) {
-			p_to = size() + p_to;
-		}
+	Vector<T> slice(int p_begin, int p_end = INT_MAX) const {
+		Vector<T> result;
 
-		ERR_FAIL_INDEX_V(p_from, size(), Vector<T>());
-		ERR_FAIL_INDEX_V(p_to, size(), Vector<T>());
+		const int s = size();
 
-		Vector<T> slice;
-		int span = 1 + p_to - p_from;
-		slice.resize(span);
-		const T *r = ptr();
-		T *w = slice.ptrw();
-		for (int i = 0; i < span; ++i) {
-			w[i] = r[p_from + i];
+		int begin = CLAMP(p_begin, -s, s);
+		if (begin < 0) {
+			begin += s;
+		}
+		int end = CLAMP(p_end, -s, s);
+		if (end < 0) {
+			end += s;
 		}
 
-		return slice;
+		ERR_FAIL_COND_V(begin > end, result);
+
+		int result_size = end - begin;
+		result.resize(result_size);
+
+		const T *const r = ptr();
+		T *const w = result.ptrw();
+		for (int i = 0; i < result_size; ++i) {
+			w[i] = r[begin + i];
+		}
+
+		return result;
 	}
 
 	bool operator==(const Vector<T> &p_arr) const {
@@ -257,6 +262,15 @@ public:
 	}
 
 	_FORCE_INLINE_ Vector() {}
+	_FORCE_INLINE_ Vector(std::initializer_list<T> p_init) {
+		Error err = _cowdata.resize(p_init.size());
+		ERR_FAIL_COND(err);
+
+		int i = 0;
+		for (const T &element : p_init) {
+			_cowdata.set(i++, element);
+		}
+	}
 	_FORCE_INLINE_ Vector(const Vector &p_from) { _cowdata._ref(p_from._cowdata); }
 
 	_FORCE_INLINE_ ~Vector() {}

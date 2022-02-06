@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -49,6 +49,20 @@ static bool saved_warnings_enabled = false;
 static bool saved_treat_warning_as_errors = false;
 static Map<ShaderWarning::Code, bool> saved_warnings;
 static uint32_t saved_warning_flags = 0U;
+
+void ShaderTextEditor::_notification(int p_what) {
+	switch (p_what) {
+		case NOTIFICATION_THEME_CHANGED: {
+			if (is_visible_in_tree()) {
+				_load_theme_settings();
+				if (warnings.size() > 0 && last_compile_result == OK) {
+					warnings_panel->clear();
+					_update_warning_panel();
+				}
+			}
+		} break;
+	}
+}
 
 Ref<Shader> ShaderTextEditor::get_edited_shader() const {
 	return shader;
@@ -138,8 +152,18 @@ void ShaderTextEditor::_load_theme_settings() {
 			}
 		}
 
-		for (int i = 0; i < ShaderTypes::get_singleton()->get_modes(RenderingServer::ShaderMode(shader->get_mode())).size(); i++) {
-			built_ins.push_back(ShaderTypes::get_singleton()->get_modes(RenderingServer::ShaderMode(shader->get_mode()))[i]);
+		const Vector<ShaderLanguage::ModeInfo> &modes = ShaderTypes::get_singleton()->get_modes(RenderingServer::ShaderMode(shader->get_mode()));
+
+		for (int i = 0; i < modes.size(); i++) {
+			const ShaderLanguage::ModeInfo &info = modes[i];
+
+			if (!info.options.is_empty()) {
+				for (int j = 0; j < info.options.size(); j++) {
+					built_ins.push_back(String(info.name) + "_" + String(info.options[j]));
+				}
+			} else {
+				built_ins.push_back(String(info.name));
+			}
 		}
 	}
 
@@ -195,7 +219,7 @@ void ShaderTextEditor::_check_shader_mode() {
 
 static ShaderLanguage::DataType _get_global_variable_type(const StringName &p_variable) {
 	RS::GlobalVariableType gvt = RS::get_singleton()->global_variable_get_type(p_variable);
-	return RS::global_variable_type_get_shader_datatype(gvt);
+	return (ShaderLanguage::DataType)RS::global_variable_type_get_shader_datatype(gvt);
 }
 
 void ShaderTextEditor::_code_complete_script(const String &p_code, List<ScriptCodeCompletionOption> *r_options) {
@@ -204,7 +228,13 @@ void ShaderTextEditor::_code_complete_script(const String &p_code, List<ScriptCo
 	ShaderLanguage sl;
 	String calltip;
 
-	sl.complete(p_code, ShaderTypes::get_singleton()->get_functions(RenderingServer::ShaderMode(shader->get_mode())), ShaderTypes::get_singleton()->get_modes(RenderingServer::ShaderMode(shader->get_mode())), ShaderLanguage::VaryingFunctionNames(), ShaderTypes::get_singleton()->get_types(), _get_global_variable_type, r_options, calltip);
+	ShaderLanguage::ShaderCompileInfo info;
+	info.functions = ShaderTypes::get_singleton()->get_functions(RenderingServer::ShaderMode(shader->get_mode()));
+	info.render_modes = ShaderTypes::get_singleton()->get_modes(RenderingServer::ShaderMode(shader->get_mode()));
+	info.shader_types = ShaderTypes::get_singleton()->get_types();
+	info.global_variable_type_func = _get_global_variable_type;
+
+	sl.complete(p_code, info, r_options, calltip);
 
 	get_text_editor()->set_code_hint(calltip);
 }
@@ -216,14 +246,20 @@ void ShaderTextEditor::_validate_script() {
 	//List<StringName> params;
 	//shader->get_param_list(&params);
 
+	ShaderLanguage::ShaderCompileInfo info;
+	info.functions = ShaderTypes::get_singleton()->get_functions(RenderingServer::ShaderMode(shader->get_mode()));
+	info.render_modes = ShaderTypes::get_singleton()->get_modes(RenderingServer::ShaderMode(shader->get_mode()));
+	info.shader_types = ShaderTypes::get_singleton()->get_types();
+	info.global_variable_type_func = _get_global_variable_type;
+
 	ShaderLanguage sl;
 
 	sl.enable_warning_checking(saved_warnings_enabled);
 	sl.set_warning_flags(saved_warning_flags);
 
-	Error err = sl.compile(code, ShaderTypes::get_singleton()->get_functions(RenderingServer::ShaderMode(shader->get_mode())), ShaderTypes::get_singleton()->get_modes(RenderingServer::ShaderMode(shader->get_mode())), ShaderLanguage::VaryingFunctionNames(), ShaderTypes::get_singleton()->get_types(), _get_global_variable_type);
+	last_compile_result = sl.compile(code, info);
 
-	if (err != OK) {
+	if (last_compile_result != OK) {
 		String error_text = "error(" + itos(sl.get_error_line()) + "): " + sl.get_error_text();
 		set_error(error_text);
 		set_error_pos(sl.get_error_line() - 1, 0);
@@ -238,14 +274,14 @@ void ShaderTextEditor::_validate_script() {
 		set_error("");
 	}
 
-	if (warnings.size() > 0 || err != OK) {
+	if (warnings.size() > 0 || last_compile_result != OK) {
 		warnings_panel->clear();
 	}
 	warnings.clear();
 	for (List<ShaderWarning>::Element *E = sl.get_warnings_ptr(); E; E = E->next()) {
 		warnings.push_back(E->get());
 	}
-	if (warnings.size() > 0 && err == OK) {
+	if (warnings.size() > 0 && last_compile_result == OK) {
 		warnings.sort_custom<WarningsComparator>();
 		_update_warning_panel();
 	} else {
@@ -271,15 +307,20 @@ void ShaderTextEditor::_update_warning_panel() {
 		}
 
 		warning_count++;
+		int line = w.get_line();
 
 		// First cell.
 		warnings_panel->push_cell();
-		warnings_panel->push_meta(w.get_line() - 1);
 		warnings_panel->push_color(warnings_panel->get_theme_color(SNAME("warning_color"), SNAME("Editor")));
-		warnings_panel->add_text(TTR("Line") + " " + itos(w.get_line()));
-		warnings_panel->add_text(" (" + w.get_name() + "):");
+		if (line != -1) {
+			warnings_panel->push_meta(line - 1);
+			warnings_panel->add_text(TTR("Line") + " " + itos(line));
+			warnings_panel->add_text(" (" + w.get_name() + "):");
+			warnings_panel->pop(); // Meta goto.
+		} else {
+			warnings_panel->add_text(w.get_name() + ":");
+		}
 		warnings_panel->pop(); // Color.
-		warnings_panel->pop(); // Meta goto.
 		warnings_panel->pop(); // Cell.
 
 		// Second cell.
@@ -645,7 +686,7 @@ void ShaderEditor::_make_context_menu(bool p_selection, Vector2 p_position) {
 	context_menu->add_shortcut(ED_GET_SHORTCUT("script_text_editor/toggle_comment"), EDIT_TOGGLE_COMMENT);
 	context_menu->add_shortcut(ED_GET_SHORTCUT("script_text_editor/toggle_bookmark"), BOOKMARK_TOGGLE);
 
-	context_menu->set_position(get_global_transform().xform(p_position));
+	context_menu->set_position(get_screen_position() + p_position);
 	context_menu->reset_size();
 	context_menu->popup();
 }

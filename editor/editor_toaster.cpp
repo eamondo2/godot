@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -173,11 +173,7 @@ void EditorToaster::_error_handler(void *p_self, const char *p_func, const char 
 		}
 
 		Severity severity = (p_type == ERR_HANDLER_WARNING) ? SEVERITY_WARNING : SEVERITY_ERROR;
-		if (Thread::get_caller_id() != Thread::get_main_id()) {
-			EditorToaster::get_singleton()->call_deferred(SNAME("popup_str"), err_str, severity, tooltip_str);
-		} else {
-			EditorToaster::get_singleton()->popup_str(err_str, severity, tooltip_str);
-		}
+		EditorToaster::get_singleton()->popup_str(err_str, severity, tooltip_str);
 	}
 }
 
@@ -366,6 +362,7 @@ Control *EditorToaster::popup(Control *p_control, Severity p_severity, double p_
 		close_button->set_flat(true);
 		close_button->set_icon(get_theme_icon("Close", "EditorIcons"));
 		close_button->connect("pressed", callable_bind(callable_mp(this, &EditorToaster::close), panel));
+		close_button->connect("theme_changed", callable_bind(callable_mp(this, &EditorToaster::_close_button_theme_changed), close_button));
 		hbox_container->add_child(close_button);
 	}
 
@@ -387,6 +384,12 @@ Control *EditorToaster::popup(Control *p_control, Severity p_severity, double p_
 }
 
 void EditorToaster::popup_str(String p_message, Severity p_severity, String p_tooltip) {
+	// Since "_popup_str" adds nodes to the tree, and since the "add_child" method is not
+	// thread-safe, it's better to defer the call to the next cycle to be thread-safe.
+	call_deferred(SNAME("_popup_str"), p_message, p_severity, p_tooltip);
+}
+
+void EditorToaster::_popup_str(String p_message, Severity p_severity, String p_tooltip) {
 	// Check if we already have a popup with the given message.
 	Control *control = nullptr;
 	for (KeyValue<Control *, Toast> element : toasts) {
@@ -436,8 +439,20 @@ void EditorToaster::close(Control *p_control) {
 	toasts[p_control].popped = false;
 }
 
+void EditorToaster::_close_button_theme_changed(Control *p_close_button) {
+	Button *close_button = Object::cast_to<Button>(p_close_button);
+	if (close_button) {
+		close_button->set_icon(get_theme_icon("Close", "EditorIcons"));
+	}
+}
+
 EditorToaster *EditorToaster::get_singleton() {
 	return singleton;
+}
+
+void EditorToaster::_bind_methods() {
+	// Binding method to make it defer-able.
+	ClassDB::bind_method(D_METHOD("_popup_str", "message", "severity", "tooltip"), &EditorToaster::_popup_str);
 }
 
 EditorToaster::EditorToaster() {

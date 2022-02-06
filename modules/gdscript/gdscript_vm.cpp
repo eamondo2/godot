@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -488,7 +488,12 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 				memnew_placement(&stack[i + 3], Variant(*p_args[i]));
 				continue;
 			}
-
+			// If types already match, don't call Variant::construct(). Constructors of some types
+			// (e.g. packed arrays) do copies, whereas they pass by reference when inside a Variant.
+			if (argument_types[i].is_type(*p_args[i], false)) {
+				memnew_placement(&stack[i + 3], Variant(*p_args[i]));
+				continue;
+			}
 			if (!argument_types[i].is_type(*p_args[i], true)) {
 				r_err.error = Callable::CallError::CALL_ERROR_INVALID_ARGUMENT;
 				r_err.argument = i;
@@ -755,7 +760,7 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 #ifdef DEBUG_ENABLED
 				if (!valid) {
 					String v = index->operator String();
-					if (v != "") {
+					if (!v.is_empty()) {
 						v = "'" + v + "'";
 					} else {
 						v = "of type '" + _get_var_type(index) + "'";
@@ -785,7 +790,7 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 #ifdef DEBUG_ENABLED
 				if (!valid) {
 					String v = index->operator String();
-					if (v != "") {
+					if (!v.is_empty()) {
 						v = "'" + v + "'";
 					} else {
 						v = "of type '" + _get_var_type(index) + "'";
@@ -817,7 +822,7 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 #ifdef DEBUG_ENABLED
 				if (oob) {
 					String v = index->operator String();
-					if (v != "") {
+					if (!v.is_empty()) {
 						v = "'" + v + "'";
 					} else {
 						v = "of type '" + _get_var_type(index) + "'";
@@ -848,7 +853,7 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 #ifdef DEBUG_ENABLED
 				if (!valid) {
 					String v = index->operator String();
-					if (v != "") {
+					if (!v.is_empty()) {
 						v = "'" + v + "'";
 					} else {
 						v = "of type '" + _get_var_type(index) + "'";
@@ -884,7 +889,7 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 #ifdef DEBUG_ENABLED
 				if (!valid) {
 					String v = key->operator String();
-					if (v != "") {
+					if (!v.is_empty()) {
 						v = "'" + v + "'";
 					} else {
 						v = "of type '" + _get_var_type(key) + "'";
@@ -917,7 +922,7 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 #ifdef DEBUG_ENABLED
 				if (oob) {
 					String v = index->operator String();
-					if (v != "") {
+					if (!v.is_empty()) {
 						v = "'" + v + "'";
 					} else {
 						v = "of type '" + _get_var_type(index) + "'";
@@ -1527,7 +1532,7 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 						}
 					} else if (methodstr == "free") {
 						if (err.error == Callable::CallError::CALL_ERROR_INVALID_METHOD) {
-							if (base->is_ref()) {
+							if (base->is_ref_counted()) {
 								err_text = "Attempted to free a reference.";
 								OPCODE_BREAK;
 							} else if (base->get_type() == Variant::OBJECT) {
@@ -1615,7 +1620,7 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 						}
 					} else if (methodstr == "free") {
 						if (err.error == Callable::CallError::CALL_ERROR_INVALID_METHOD) {
-							if (base->is_ref()) {
+							if (base->is_ref_counted()) {
 								err_text = "Attempted to free a reference.";
 								OPCODE_BREAK;
 							} else if (base->get_type() == Variant::OBJECT) {
@@ -3295,20 +3300,20 @@ Variant GDScriptFunction::call(GDScriptInstance *p_instance, const Variant **p_a
 		//error
 		// function, file, line, error, explanation
 		String err_file;
-		if (p_instance && ObjectDB::get_instance(p_instance->owner_id) != nullptr && p_instance->script->is_valid() && p_instance->script->path != "") {
+		if (p_instance && ObjectDB::get_instance(p_instance->owner_id) != nullptr && p_instance->script->is_valid() && !p_instance->script->path.is_empty()) {
 			err_file = p_instance->script->path;
 		} else if (script) {
 			err_file = script->path;
 		}
-		if (err_file == "") {
+		if (err_file.is_empty()) {
 			err_file = "<built-in>";
 		}
 		String err_func = name;
-		if (p_instance && ObjectDB::get_instance(p_instance->owner_id) != nullptr && p_instance->script->is_valid() && p_instance->script->name != "") {
+		if (p_instance && ObjectDB::get_instance(p_instance->owner_id) != nullptr && p_instance->script->is_valid() && !p_instance->script->name.is_empty()) {
 			err_func = p_instance->script->name + "." + err_func;
 		}
 		int err_line = line;
-		if (err_text == "") {
+		if (err_text.is_empty()) {
 			err_text = "Internal script error! Opcode: " + itos(last_opcode) + " (please report).";
 		}
 

@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -264,7 +264,7 @@ void EditorExportPlatform::gen_debug_flags(Vector<String> &r_flags, int p_flags)
 		String passwd = EditorSettings::get_singleton()->get("filesystem/file_server/password");
 		r_flags.push_back("--remote-fs");
 		r_flags.push_back(host + ":" + itos(port));
-		if (passwd != "") {
+		if (!passwd.is_empty()) {
 			r_flags.push_back("--remote-fs-password");
 			r_flags.push_back(passwd);
 		}
@@ -404,9 +404,9 @@ Ref<ImageTexture> EditorExportPlatform::get_option_icon(int p_index) const {
 	Ref<Theme> theme = EditorNode::get_singleton()->get_editor_theme();
 	ERR_FAIL_COND_V(theme.is_null(), Ref<ImageTexture>());
 	if (EditorNode::get_singleton()->get_main_control()->is_layout_rtl()) {
-		return theme->get_icon("PlayBackwards", "EditorIcons");
+		return theme->get_icon(SNAME("PlayBackwards"), SNAME("EditorIcons"));
 	} else {
-		return theme->get_icon("Play", "EditorIcons");
+		return theme->get_icon(SNAME("Play"), SNAME("EditorIcons"));
 	}
 }
 
@@ -528,7 +528,7 @@ void EditorExportPlatform::_edit_files_with_filter(DirAccess *da, const Vector<S
 }
 
 void EditorExportPlatform::_edit_filter_list(Set<String> &r_list, const String &p_filter, bool exclude) {
-	if (p_filter == "") {
+	if (p_filter.is_empty()) {
 		return;
 	}
 	Vector<String> split = p_filter.split(",");
@@ -620,6 +620,14 @@ String EditorExportPlugin::get_ios_cpp_code() const {
 	return ios_cpp_code;
 }
 
+void EditorExportPlugin::add_osx_plugin_file(const String &p_path) {
+	osx_plugin_files.push_back(p_path);
+}
+
+const Vector<String> &EditorExportPlugin::get_osx_plugin_files() const {
+	return osx_plugin_files;
+}
+
 void EditorExportPlugin::add_ios_project_static_lib(const String &p_path) {
 	ios_project_static_libs.push_back(p_path);
 }
@@ -660,6 +668,7 @@ void EditorExportPlugin::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("add_ios_linker_flags", "flags"), &EditorExportPlugin::add_ios_linker_flags);
 	ClassDB::bind_method(D_METHOD("add_ios_bundle_file", "path"), &EditorExportPlugin::add_ios_bundle_file);
 	ClassDB::bind_method(D_METHOD("add_ios_cpp_code", "code"), &EditorExportPlugin::add_ios_cpp_code);
+	ClassDB::bind_method(D_METHOD("add_osx_plugin_file", "path"), &EditorExportPlugin::add_osx_plugin_file);
 	ClassDB::bind_method(D_METHOD("skip"), &EditorExportPlugin::skip);
 
 	GDVIRTUAL_BIND(_export_file, "path", "type", "features");
@@ -683,12 +692,12 @@ EditorExportPlatform::FeatureContainers EditorExportPlatform::get_feature_contai
 		result.features_pv.push_back(E);
 	}
 
-	if (p_preset->get_custom_features() != String()) {
+	if (!p_preset->get_custom_features().is_empty()) {
 		Vector<String> tmp_custom_list = p_preset->get_custom_features().split(",");
 
 		for (int i = 0; i < tmp_custom_list.size(); i++) {
 			String f = tmp_custom_list[i].strip_edges();
-			if (f != String()) {
+			if (!f.is_empty()) {
 				result.features.insert(f);
 				result.features_pv.push_back(f);
 			}
@@ -809,7 +818,7 @@ Error EditorExportPlatform::export_project_files(const Ref<EditorExportPreset> &
 				int v = 0;
 				if (i * 2 < script_key.length()) {
 					char32_t ct = script_key[i * 2];
-					if (ct >= '0' && ct <= '9') {
+					if (is_digit(ct)) {
 						ct = ct - '0';
 					} else if (ct >= 'a' && ct <= 'f') {
 						ct = 10 + ct - 'a';
@@ -819,7 +828,7 @@ Error EditorExportPlatform::export_project_files(const Ref<EditorExportPreset> &
 
 				if (i * 2 + 1 < script_key.length()) {
 					char32_t ct = script_key[i * 2 + 1];
-					if (ct >= '0' && ct <= '9') {
+					if (is_digit(ct)) {
 						ct = ct - '0';
 					} else if (ct >= 'a' && ct <= 'f') {
 						ct = 10 + ct - 'a';
@@ -994,12 +1003,12 @@ Error EditorExportPlatform::export_project_files(const Ref<EditorExportPreset> &
 
 	Vector<String> custom_list;
 
-	if (p_preset->get_custom_features() != String()) {
+	if (!p_preset->get_custom_features().is_empty()) {
 		Vector<String> tmp_custom_list = p_preset->get_custom_features().split(",");
 
 		for (int i = 0; i < tmp_custom_list.size(); i++) {
 			String f = tmp_custom_list[i].strip_edges();
-			if (f != String()) {
+			if (!f.is_empty()) {
 				custom_list.push_back(f);
 			}
 		}
@@ -1033,14 +1042,14 @@ Error EditorExportPlatform::export_project_files(const Ref<EditorExportPreset> &
 	// Store icon and splash images directly, they need to bypass the import system and be loaded as images
 	String icon = ProjectSettings::get_singleton()->get("application/config/icon");
 	String splash = ProjectSettings::get_singleton()->get("application/boot_splash/image");
-	if (icon != String() && FileAccess::exists(icon)) {
+	if (!icon.is_empty() && FileAccess::exists(icon)) {
 		Vector<uint8_t> array = FileAccess::get_file_as_array(icon);
 		err = p_func(p_udata, icon, array, idx, total, enc_in_filters, enc_ex_filters, key);
 		if (err != OK) {
 			return err;
 		}
 	}
-	if (splash != String() && FileAccess::exists(splash) && icon != splash) {
+	if (!splash.is_empty() && FileAccess::exists(splash) && icon != splash) {
 		Vector<uint8_t> array = FileAccess::get_file_as_array(splash);
 		err = p_func(p_udata, splash, array, idx, total, enc_in_filters, enc_ex_filters, key);
 		if (err != OK) {
@@ -1206,7 +1215,7 @@ Error EditorExportPlatform::save_pack(const Ref<EditorExportPreset> &p_preset, c
 				int v = 0;
 				if (i * 2 < script_key.length()) {
 					char32_t ct = script_key[i * 2];
-					if (ct >= '0' && ct <= '9') {
+					if (is_digit(ct)) {
 						ct = ct - '0';
 					} else if (ct >= 'a' && ct <= 'f') {
 						ct = 10 + ct - 'a';
@@ -1216,7 +1225,7 @@ Error EditorExportPlatform::save_pack(const Ref<EditorExportPreset> &p_preset, c
 
 				if (i * 2 + 1 < script_key.length()) {
 					char32_t ct = script_key[i * 2 + 1];
-					if (ct >= '0' && ct <= '9') {
+					if (is_digit(ct)) {
 						ct = ct - '0';
 					} else if (ct >= 'a' && ct <= 'f') {
 						ct = 10 + ct - 'a';
@@ -1359,7 +1368,7 @@ void EditorExportPlatform::gen_export_flags(Vector<String> &r_flags, int p_flags
 		String passwd = EditorSettings::get_singleton()->get("filesystem/file_server/password");
 		r_flags.push_back("--remote-fs");
 		r_flags.push_back(host + ":" + itos(port));
-		if (passwd != "") {
+		if (!passwd.is_empty()) {
 			r_flags.push_back("--remote-fs-password");
 			r_flags.push_back(passwd);
 		}
@@ -1492,36 +1501,12 @@ void EditorExport::add_export_preset(const Ref<EditorExportPreset> &p_preset, in
 }
 
 String EditorExportPlatform::test_etc2() const {
-	//	String driver = ProjectSettings::get_singleton()->get("rendering/driver/driver_name");
-	//	bool etc_supported = ProjectSettings::get_singleton()->get("rendering/textures/vram_compression/import_etc");
-	//	bool etc2_supported = ProjectSettings::get_singleton()->get("rendering/textures/vram_compression/import_etc2");
-	String driver = ProjectSettings::get_singleton()->get("rendering/driver/driver_name");
-	bool etc_supported = ProjectSettings::get_singleton()->get("rendering/textures/vram_compression/import_etc");
-	bool etc2_supported = ProjectSettings::get_singleton()->get("rendering/textures/vram_compression/import_etc2");
+	const bool etc2_supported = ProjectSettings::get_singleton()->get("rendering/textures/vram_compression/import_etc2");
 
-	if (driver == "opengl3" && !etc_supported) {
-		return TTR("Target platform requires 'ETC' texture compression for OpenGL. Enable 'Import Etc' in Project Settings.");
-	} else if (driver == "vulkan" && !etc2_supported) {
-		// FIXME: Review if this is true for Vulkan.
-		return TTR("Target platform requires 'ETC2' texture compression for Vulkan. Enable 'Import Etc 2' in Project Settings.");
+	if (!etc2_supported) {
+		return TTR("Target platform requires 'ETC2' texture compression. Enable 'Import Etc 2' in Project Settings.");
 	}
-	return String();
-}
 
-String EditorExportPlatform::test_etc2_or_pvrtc() const {
-	String driver = ProjectSettings::get_singleton()->get("rendering/driver/driver_name");
-	bool etc2_supported = ProjectSettings::get_singleton()->get("rendering/textures/vram_compression/import_etc2");
-	bool pvrtc_supported = ProjectSettings::get_singleton()->get("rendering/textures/vram_compression/import_pvrtc");
-	//	String driver = ProjectSettings::get_singleton()->get("rendering/driver/driver_name");
-	//	bool etc2_supported = ProjectSettings::get_singleton()->get("rendering/textures/vram_compression/import_etc2");
-	//	bool pvrtc_supported = ProjectSettings::get_singleton()->get("rendering/textures/vram_compression/import_pvrtc");
-
-	if (driver == "opengl3" && !pvrtc_supported) {
-		return TTR("Target platform requires 'PVRTC' texture compression for OpenGL. Enable 'Import Pvrtc' in Project Settings.");
-	} else if (driver == "vulkan" && !etc2_supported && !pvrtc_supported) {
-		// FIXME: Review if this is true for Vulkan.
-		return TTR("Target platform requires 'ETC2' or 'PVRTC' texture compression for Vulkan. Enable 'Import Etc 2' or 'Import Pvrtc' in Project Settings.");
-	}
 	return String();
 }
 
@@ -1540,7 +1525,7 @@ void EditorExport::remove_export_preset(int p_idx) {
 }
 
 void EditorExport::add_export_plugin(const Ref<EditorExportPlugin> &p_plugin) {
-	if (export_plugins.find(p_plugin) == -1) {
+	if (!export_plugins.has(p_plugin)) {
 		export_plugins.push_back(p_plugin);
 	}
 }
@@ -1855,7 +1840,7 @@ Error EditorExportPlatformPC::export_project(const Ref<EditorExportPreset> &p_pr
 
 	template_path = template_path.strip_edges();
 
-	if (template_path == String()) {
+	if (template_path.is_empty()) {
 		if (p_preset->get("binary_format/64_bits")) {
 			if (p_debug) {
 				template_path = find_export_template(debug_file_64);
@@ -1871,7 +1856,7 @@ Error EditorExportPlatformPC::export_project(const Ref<EditorExportPreset> &p_pr
 		}
 	}
 
-	if (template_path != String() && !FileAccess::exists(template_path)) {
+	if (!template_path.is_empty() && !FileAccess::exists(template_path)) {
 		EditorNode::get_singleton()->show_warning(TTR("Template file not found:") + "\n" + template_path);
 		return ERR_FILE_NOT_FOUND;
 	}

@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -885,11 +885,11 @@ void GridMapEditor::update_palette() {
 		String name = mesh_library->get_item_name(id);
 		Ref<Texture2D> preview = mesh_library->get_item_preview(id);
 
-		if (name == "") {
+		if (name.is_empty()) {
 			name = "#" + itos(id);
 		}
 
-		if (filter != "" && !filter.is_subsequence_ofi(name)) {
+		if (!filter.is_empty() && !filter.is_subsequence_ofn(name)) {
 			continue;
 		}
 
@@ -1028,6 +1028,13 @@ void GridMapEditor::_draw_grids(const Vector3 &cell_size) {
 	}
 }
 
+void GridMapEditor::_update_theme() {
+	options->set_icon(get_theme_icon(SNAME("GridMap"), SNAME("EditorIcons")));
+	search_box->set_right_icon(get_theme_icon(SNAME("Search"), SNAME("EditorIcons")));
+	mode_thumbnail->set_icon(get_theme_icon(SNAME("FileThumbnail"), SNAME("EditorIcons")));
+	mode_list->set_icon(get_theme_icon(SNAME("FileList"), SNAME("EditorIcons")));
+}
+
 void GridMapEditor::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_ENTER_TREE: {
@@ -1048,6 +1055,7 @@ void GridMapEditor::_notification(int p_what) {
 
 			_update_selection_transform();
 			_update_paste_indicator();
+			_update_theme();
 		} break;
 
 		case NOTIFICATION_EXIT_TREE: {
@@ -1088,8 +1096,7 @@ void GridMapEditor::_notification(int p_what) {
 		} break;
 
 		case NOTIFICATION_THEME_CHANGED: {
-			options->set_icon(get_theme_icon(SNAME("GridMap"), SNAME("EditorIcons")));
-			search_box->set_right_icon(get_theme_icon(SNAME("Search"), SNAME("EditorIcons")));
+			_update_theme();
 		} break;
 
 		case NOTIFICATION_APPLICATION_FOCUS_OUT: {
@@ -1163,7 +1170,7 @@ GridMapEditor::GridMapEditor(EditorNode *p_editor) {
 
 	spatial_editor_hb = memnew(HBoxContainer);
 	spatial_editor_hb->set_h_size_flags(SIZE_EXPAND_FILL);
-	spatial_editor_hb->set_alignment(BoxContainer::ALIGN_END);
+	spatial_editor_hb->set_alignment(BoxContainer::ALIGNMENT_END);
 	Node3DEditor::get_singleton()->add_control_to_menu_panel(spatial_editor_hb);
 
 	spin_box_label = memnew(Label);
@@ -1250,7 +1257,6 @@ GridMapEditor::GridMapEditor(EditorNode *p_editor) {
 	mode_thumbnail->set_flat(true);
 	mode_thumbnail->set_toggle_mode(true);
 	mode_thumbnail->set_pressed(true);
-	mode_thumbnail->set_icon(p_editor->get_gui_base()->get_theme_icon(SNAME("FileThumbnail"), SNAME("EditorIcons")));
 	hb->add_child(mode_thumbnail);
 	mode_thumbnail->connect("pressed", callable_mp(this, &GridMapEditor::_set_display_mode), varray(DISPLAY_THUMBNAIL));
 
@@ -1258,7 +1264,6 @@ GridMapEditor::GridMapEditor(EditorNode *p_editor) {
 	mode_list->set_flat(true);
 	mode_list->set_toggle_mode(true);
 	mode_list->set_pressed(false);
-	mode_list->set_icon(p_editor->get_gui_base()->get_theme_icon(SNAME("FileList"), SNAME("EditorIcons")));
 	hb->add_child(mode_list);
 	mode_list->connect("pressed", callable_mp(this, &GridMapEditor::_set_display_mode), varray(DISPLAY_LIST));
 
@@ -1280,8 +1285,8 @@ GridMapEditor::GridMapEditor(EditorNode *p_editor) {
 
 	info_message = memnew(Label);
 	info_message->set_text(TTR("Give a MeshLibrary resource to this GridMap to use its meshes."));
-	info_message->set_valign(Label::VALIGN_CENTER);
-	info_message->set_align(Label::ALIGN_CENTER);
+	info_message->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
+	info_message->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 	info_message->set_autowrap_mode(Label::AUTOWRAP_WORD_SMART);
 	info_message->set_custom_minimum_size(Size2(100 * EDSCALE, 0));
 	info_message->set_anchors_and_offsets_preset(PRESET_WIDE, PRESET_MODE_KEEP_SIZE, 8 * EDSCALE);
@@ -1454,10 +1459,10 @@ void GridMapEditorPlugin::_notification(int p_what) {
 	if (p_what == EditorSettings::NOTIFICATION_EDITOR_SETTINGS_CHANGED) {
 		switch ((int)EditorSettings::get_singleton()->get("editors/grid_map/editor_side")) {
 			case 0: { // Left.
-				Node3DEditor::get_singleton()->get_palette_split()->move_child(grid_map_editor, 0);
+				Node3DEditor::get_singleton()->move_control_to_left_panel(grid_map_editor);
 			} break;
 			case 1: { // Right.
-				Node3DEditor::get_singleton()->get_palette_split()->move_child(grid_map_editor, 1);
+				Node3DEditor::get_singleton()->move_control_to_right_panel(grid_map_editor);
 			} break;
 		}
 	}
@@ -1493,10 +1498,10 @@ GridMapEditorPlugin::GridMapEditorPlugin(EditorNode *p_node) {
 	grid_map_editor = memnew(GridMapEditor(editor));
 	switch ((int)EditorSettings::get_singleton()->get("editors/grid_map/editor_side")) {
 		case 0: { // Left.
-			add_control_to_container(CONTAINER_SPATIAL_EDITOR_SIDE_LEFT, grid_map_editor);
+			Node3DEditor::get_singleton()->add_control_to_left_panel(grid_map_editor);
 		} break;
 		case 1: { // Right.
-			add_control_to_container(CONTAINER_SPATIAL_EDITOR_SIDE_RIGHT, grid_map_editor);
+			Node3DEditor::get_singleton()->add_control_to_right_panel(grid_map_editor);
 		} break;
 	}
 	grid_map_editor->hide();

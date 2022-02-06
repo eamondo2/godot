@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -261,13 +261,13 @@ String VisualScriptFunctionCall::get_text() const {
 	String text;
 
 	if (call_mode == CALL_MODE_BASIC_TYPE) {
-		text = String("On ") + Variant::get_type_name(basic_type);
+		text = vformat(TTR("On %s"), Variant::get_type_name(basic_type));
 	} else if (call_mode == CALL_MODE_INSTANCE) {
-		text = String("On ") + base_type;
+		text = vformat(TTR("On %s"), base_type);
 	} else if (call_mode == CALL_MODE_NODE_PATH) {
 		text = "[" + String(base_path.simplified()) + "]";
 	} else if (call_mode == CALL_MODE_SELF) {
-		text = "On Self";
+		text = TTR("On Self");
 	} else if (call_mode == CALL_MODE_SINGLETON) {
 		text = String(singleton) + ":" + String(function) + "()";
 	}
@@ -370,7 +370,7 @@ void VisualScriptFunctionCall::_update_method_cache() {
 
 	} else if (call_mode == CALL_MODE_INSTANCE) {
 		type = base_type;
-		if (base_script != String()) {
+		if (!base_script.is_empty()) {
 			if (!ResourceCache::has(base_script) && ScriptServer::edit_request_func) {
 				ScriptServer::edit_request_func(base_script); //make sure it's loaded
 			}
@@ -539,7 +539,7 @@ void VisualScriptFunctionCall::_validate_property(PropertyInfo &property) const 
 			property.hint = PROPERTY_HINT_ENUM;
 			String sl;
 			for (const Engine::Singleton &E : names) {
-				if (sl != String()) {
+				if (!sl.is_empty()) {
 					sl += ",";
 				}
 				sl += E.name;
@@ -580,7 +580,7 @@ void VisualScriptFunctionCall::_validate_property(PropertyInfo &property) const 
 			property.hint = PROPERTY_HINT_METHOD_OF_BASE_TYPE;
 			property.hint_string = base_type;
 
-			if (base_script != String()) {
+			if (!base_script.is_empty()) {
 				if (!ResourceCache::has(base_script) && ScriptServer::edit_request_func) {
 					ScriptServer::edit_request_func(base_script); //make sure it's loaded
 				}
@@ -684,7 +684,7 @@ void VisualScriptFunctionCall::_bind_methods() {
 
 	String script_ext_hint;
 	for (const String &E : script_extensions) {
-		if (script_ext_hint != String()) {
+		if (!script_ext_hint.is_empty()) {
 			script_ext_hint += ",";
 		}
 		script_ext_hint += "*." + E;
@@ -912,7 +912,7 @@ int VisualScriptPropertySet::get_output_sequence_port_count() const {
 }
 
 bool VisualScriptPropertySet::has_input_sequence_port() const {
-	return 1;
+	return true;
 }
 
 Node *VisualScriptPropertySet::_get_base_node() const {
@@ -1033,15 +1033,25 @@ PropertyInfo VisualScriptPropertySet::get_output_value_port_info(int p_idx) cons
 
 String VisualScriptPropertySet::get_caption() const {
 	static const char *opname[ASSIGN_OP_MAX] = {
-		"Set", "Add", "Subtract", "Multiply", "Divide", "Mod", "ShiftLeft", "ShiftRight", "BitAnd", "BitOr", "BitXor"
+		TTRC("Set %s"),
+		TTRC("Add %s"),
+		TTRC("Subtract %s"),
+		TTRC("Multiply %s"),
+		TTRC("Divide %s"),
+		TTRC("Mod %s"),
+		TTRC("ShiftLeft %s"),
+		TTRC("ShiftRight %s"),
+		TTRC("BitAnd %s"),
+		TTRC("BitOr %s"),
+		TTRC("BitXor %s")
 	};
 
-	String prop = String(opname[assign_op]) + " " + property;
+	String prop = property;
 	if (index != StringName()) {
 		prop += "." + String(index);
 	}
 
-	return prop;
+	return vformat(TTRGET(opname[assign_op]), prop);
 }
 
 String VisualScriptPropertySet::get_text() const {
@@ -1049,13 +1059,13 @@ String VisualScriptPropertySet::get_text() const {
 		return "";
 	}
 	if (call_mode == CALL_MODE_BASIC_TYPE) {
-		return String("On ") + Variant::get_type_name(basic_type);
+		return vformat(TTR("On %s"), Variant::get_type_name(basic_type));
 	} else if (call_mode == CALL_MODE_INSTANCE) {
-		return String("On ") + base_type;
+		return vformat(TTR("On %s"), base_type);
 	} else if (call_mode == CALL_MODE_NODE_PATH) {
 		return " [" + String(base_path.simplified()) + "]";
 	} else {
-		return "On Self";
+		return TTR("On Self");
 	}
 }
 
@@ -1161,7 +1171,7 @@ void VisualScriptPropertySet::_update_cache() {
 			}
 		} else if (call_mode == CALL_MODE_INSTANCE) {
 			type = base_type;
-			if (base_script != String()) {
+			if (!base_script.is_empty()) {
 				if (!ResourceCache::has(base_script) && ScriptServer::edit_request_func) {
 					ScriptServer::edit_request_func(base_script); //make sure it's loaded
 				}
@@ -1321,7 +1331,7 @@ void VisualScriptPropertySet::_validate_property(PropertyInfo &property) const {
 			property.hint = PROPERTY_HINT_PROPERTY_OF_BASE_TYPE;
 			property.hint_string = base_type;
 
-			if (base_script != String()) {
+			if (!base_script.is_empty()) {
 				if (!ResourceCache::has(base_script) && ScriptServer::edit_request_func) {
 					ScriptServer::edit_request_func(base_script); //make sure it's loaded
 				}
@@ -1361,7 +1371,7 @@ void VisualScriptPropertySet::_validate_property(PropertyInfo &property) const {
 		property.hint = PROPERTY_HINT_ENUM;
 		property.hint_string = options;
 		property.type = Variant::STRING;
-		if (options == "") {
+		if (options.is_empty()) {
 			property.usage = PROPERTY_USAGE_NONE; //hide if type has no usable index
 		}
 	}
@@ -1411,7 +1421,7 @@ void VisualScriptPropertySet::_bind_methods() {
 
 	String script_ext_hint;
 	for (const String &E : script_extensions) {
-		if (script_ext_hint != String()) {
+		if (!script_ext_hint.is_empty()) {
 			script_ext_hint += ",";
 		}
 		script_ext_hint += "*." + E;
@@ -1761,23 +1771,23 @@ PropertyInfo VisualScriptPropertyGet::get_output_value_port_info(int p_idx) cons
 }
 
 String VisualScriptPropertyGet::get_caption() const {
-	String prop = String("Get ") + property;
+	String prop = property;
 	if (index != StringName()) {
 		prop += "." + String(index);
 	}
 
-	return prop;
+	return vformat(TTR("Get %s"), prop);
 }
 
 String VisualScriptPropertyGet::get_text() const {
 	if (call_mode == CALL_MODE_BASIC_TYPE) {
-		return String("On ") + Variant::get_type_name(basic_type);
+		return vformat(TTR("On %s"), Variant::get_type_name(basic_type));
 	} else if (call_mode == CALL_MODE_INSTANCE) {
-		return String("On ") + base_type;
+		return vformat(TTR("On %s"), base_type);
 	} else if (call_mode == CALL_MODE_NODE_PATH) {
 		return " [" + String(base_path.simplified()) + "]";
 	} else {
-		return "On Self";
+		return TTR("On Self");
 	}
 }
 
@@ -1847,7 +1857,7 @@ void VisualScriptPropertyGet::_update_cache() {
 			}
 		} else if (call_mode == CALL_MODE_INSTANCE) {
 			type = base_type;
-			if (base_script != String()) {
+			if (!base_script.is_empty()) {
 				if (!ResourceCache::has(base_script) && ScriptServer::edit_request_func) {
 					ScriptServer::edit_request_func(base_script); //make sure it's loaded
 				}
@@ -2027,7 +2037,7 @@ void VisualScriptPropertyGet::_validate_property(PropertyInfo &property) const {
 			property.hint = PROPERTY_HINT_PROPERTY_OF_BASE_TYPE;
 			property.hint_string = base_type;
 
-			if (base_script != String()) {
+			if (!base_script.is_empty()) {
 				if (!ResourceCache::has(base_script) && ScriptServer::edit_request_func) {
 					ScriptServer::edit_request_func(base_script); //make sure it's loaded
 				}
@@ -2066,7 +2076,7 @@ void VisualScriptPropertyGet::_validate_property(PropertyInfo &property) const {
 		property.hint = PROPERTY_HINT_ENUM;
 		property.hint_string = options;
 		property.type = Variant::STRING;
-		if (options == "") {
+		if (options.is_empty()) {
 			property.usage = PROPERTY_USAGE_NONE; //hide if type has no usable index
 		}
 	}
@@ -2113,7 +2123,7 @@ void VisualScriptPropertyGet::_bind_methods() {
 
 	String script_ext_hint;
 	for (const String &E : script_extensions) {
-		if (script_ext_hint != String()) {
+		if (!script_ext_hint.is_empty()) {
 			script_ext_hint += ",";
 		}
 		script_ext_hint += "." + E;
@@ -2293,7 +2303,7 @@ PropertyInfo VisualScriptEmitSignal::get_output_value_port_info(int p_idx) const
 }
 
 String VisualScriptEmitSignal::get_caption() const {
-	return "Emit " + String(name);
+	return vformat(TTR("Emit %s"), name);
 }
 
 void VisualScriptEmitSignal::set_signal(const StringName &p_type) {
@@ -2316,18 +2326,26 @@ void VisualScriptEmitSignal::_validate_property(PropertyInfo &property) const {
 		property.hint = PROPERTY_HINT_ENUM;
 
 		List<StringName> sigs;
+		List<MethodInfo> base_sigs;
 
 		Ref<VisualScript> vs = get_visual_script();
 		if (vs.is_valid()) {
 			vs->get_custom_signal_list(&sigs);
+			ClassDB::get_signal_list(vs->get_instance_base_type(), &base_sigs);
 		}
 
 		String ml;
 		for (const StringName &E : sigs) {
-			if (ml != String()) {
+			if (!ml.is_empty()) {
 				ml += ",";
 			}
 			ml += E;
+		}
+		for (const MethodInfo &E : base_sigs) {
+			if (!ml.is_empty()) {
+				ml += ",";
+			}
+			ml += E.name;
 		}
 
 		property.hint_string = ml;

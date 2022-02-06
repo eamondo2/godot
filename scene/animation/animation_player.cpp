@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2022 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2022 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -625,7 +625,7 @@ void AnimationPlayer::_animation_process_animation(AnimationData *p_anim, double
 								pa->object->set_indexed(pa->subpath, value, &valid); //you are not speshul
 #ifdef DEBUG_ENABLED
 								if (!valid) {
-									ERR_PRINT("Failed setting track value '" + String(pa->owner->path) + "'. Check if property exists or the type of key is valid. Animation '" + a->get_name() + "' at node '" + get_path() + "'.");
+									ERR_PRINT("Failed setting track value '" + String(pa->owner->path) + "'. Check if the property exists or the type of key is valid. Animation '" + a->get_name() + "' at node '" + get_path() + "'.");
 								}
 #endif
 
@@ -736,7 +736,7 @@ void AnimationPlayer::_animation_process_animation(AnimationData *p_anim, double
 					ba->bezier_accum = bezier;
 					ba->accum_pass = accum_pass;
 				} else {
-					ba->bezier_accum = Math::lerp(ba->bezier_accum, bezier, p_interp);
+					ba->bezier_accum = Math::lerp(ba->bezier_accum, (float)bezier, p_interp);
 				}
 
 			} break;
@@ -1070,8 +1070,24 @@ void AnimationPlayer::_animation_update_transforms() {
 				bool valid;
 				pa->object->set_indexed(pa->subpath, pa->value_accum, &valid); //you are not speshul
 #ifdef DEBUG_ENABLED
+
 				if (!valid) {
-					ERR_PRINT("Failed setting key at time " + rtos(playback.current.pos) + " in Animation '" + get_current_animation() + "' at Node '" + get_path() + "', Track '" + String(pa->owner->path) + "'. Check if property exists or the type of key is right for the property");
+					// Get subpath as string for printing the error
+					// Cannot use `String::join(Vector<String>)` because this is a vector of StringName
+					String key_debug;
+					if (pa->subpath.size() > 0) {
+						key_debug = pa->subpath[0];
+						for (int subpath_index = 1; subpath_index < pa->subpath.size(); ++subpath_index) {
+							key_debug += ".";
+							key_debug += pa->subpath[subpath_index];
+						}
+					}
+					ERR_PRINT("Failed setting key '" + key_debug +
+							"' at time " + rtos(playback.current.pos) +
+							" in Animation '" + get_current_animation() +
+							"' at Node '" + get_path() +
+							"', Track '" + String(pa->owner->path) +
+							"'. Check if the property exists or the type of key is right for the property.");
 				}
 #endif
 
@@ -1155,7 +1171,7 @@ void AnimationPlayer::_animation_process(double p_delta) {
 
 Error AnimationPlayer::add_animation(const StringName &p_name, const Ref<Animation> &p_animation) {
 #ifdef DEBUG_ENABLED
-	ERR_FAIL_COND_V_MSG(String(p_name).find("/") != -1 || String(p_name).find(":") != -1 || String(p_name).find(",") != -1 || String(p_name).find("[") != -1, ERR_INVALID_PARAMETER, "Invalid animation name: " + String(p_name) + ".");
+	ERR_FAIL_COND_V_MSG(String(p_name).contains("/") || String(p_name).contains(":") || String(p_name).contains(",") || String(p_name).contains("["), ERR_INVALID_PARAMETER, "Invalid animation name: " + String(p_name) + ".");
 #endif
 
 	ERR_FAIL_COND_V(p_animation.is_null(), ERR_INVALID_PARAMETER);
@@ -1197,7 +1213,7 @@ void AnimationPlayer::_unref_anim(const Ref<Animation> &p_anim) {
 
 void AnimationPlayer::rename_animation(const StringName &p_name, const StringName &p_new_name) {
 	ERR_FAIL_COND(!animation_set.has(p_name));
-	ERR_FAIL_COND(String(p_new_name).find("/") != -1 || String(p_new_name).find(":") != -1);
+	ERR_FAIL_COND(String(p_new_name).contains("/") || String(p_new_name).contains(":"));
 	ERR_FAIL_COND(animation_set.has(p_new_name));
 
 	stop();
@@ -1416,7 +1432,7 @@ bool AnimationPlayer::is_playing() const {
 }
 
 void AnimationPlayer::set_current_animation(const String &p_anim) {
-	if (p_anim == "[stop]" || p_anim == "") {
+	if (p_anim == "[stop]" || p_anim.is_empty()) {
 		stop();
 	} else if (!is_playing() || playback.assigned != p_anim) {
 		play(p_anim);
@@ -1754,7 +1770,7 @@ Ref<AnimatedValuesBackup> AnimationPlayer::backup_animated_values(Node *p_root_o
 Ref<AnimatedValuesBackup> AnimationPlayer::apply_reset(bool p_user_initiated) {
 	ERR_FAIL_COND_V(!can_apply_reset(), Ref<AnimatedValuesBackup>());
 
-	Ref<Animation> reset_anim = animation_set["RESET"].animation;
+	Ref<Animation> reset_anim = animation_set[SceneStringNames::get_singleton()->RESET].animation;
 	ERR_FAIL_COND_V(reset_anim.is_null(), Ref<AnimatedValuesBackup>());
 
 	Node *root_node = get_node_or_null(root);
@@ -1762,8 +1778,8 @@ Ref<AnimatedValuesBackup> AnimationPlayer::apply_reset(bool p_user_initiated) {
 
 	AnimationPlayer *aux_player = memnew(AnimationPlayer);
 	EditorNode::get_singleton()->add_child(aux_player);
-	aux_player->add_animation("RESET", reset_anim);
-	aux_player->set_assigned_animation("RESET");
+	aux_player->add_animation(SceneStringNames::get_singleton()->RESET, reset_anim);
+	aux_player->set_assigned_animation(SceneStringNames::get_singleton()->RESET);
 	// Forcing the use of the original root because the scene where original player belongs may be not the active one
 	Node *root = get_node(get_root());
 	Ref<AnimatedValuesBackup> old_values = aux_player->backup_animated_values(root);
@@ -1785,7 +1801,7 @@ Ref<AnimatedValuesBackup> AnimationPlayer::apply_reset(bool p_user_initiated) {
 }
 
 bool AnimationPlayer::can_apply_reset() const {
-	return has_animation("RESET") && playback.assigned != StringName("RESET");
+	return has_animation(SceneStringNames::get_singleton()->RESET) && playback.assigned != SceneStringNames::get_singleton()->RESET;
 }
 #endif
 
