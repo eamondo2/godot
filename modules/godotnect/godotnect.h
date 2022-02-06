@@ -19,40 +19,23 @@ class GodotNect : public Object {
 protected:
   static void _bind_methods();
 
+private:
+  volatile bool m_stop;
+  pthread_t m_thread;
+
 public:
+  freenect_context *f_ctx_global; // Theoretically gives us access to the
+                                  // context held by the manager instance.
+
+  typedef std::map<std::string, GodotNectDevice *> DeviceMap;
+
+  DeviceMap m_devices;
+
   // Some flag for checking if the kinect has been talked to yet.
   bool kinect_is_initialized = false;
   // Bool to indicate whether or not the Freenect object has been constructed
   // yet.
   bool freenect_backend_is_initialized = false;
-
-  // Need a list of GodotNectDevice objects to keep track of.
-  // Theoretically we might have multiple of them, assuming that there could be
-  // more than one Kinect in use? Though that would be forced to be handled by
-  // the hpp version of the library, so it might not be necessary. We're just
-  // extending the default constructor parms. in the header we've made, so
-  // there's a chance that we don't actually have the ability to snoop quite as
-  // much. It would be good to have access to the context variable though, as it
-  // would let us list devices, pull serials etc.
-
-  // Struct definition for the map object that stores the devices in use by the
-  // instance as a manager.
-  struct GodotNectDeviceEntry {
-    struct GodotNectDeviceEntry *next; // Pointer to next entry in list.
-    GodotNectDevice *device;           // Device entry.
-  };
-
-  typedef struct GodotNectDeviceEntry GodotNectDeviceEntry;
-
-  GodotNectDeviceEntry *root_device_entry; // Entry point for linked-list
-                                           // organization to store the devices.
-
-  freenect_context *f_ctx_global; // Theoretically gives us access to the
-                                  // context held by the manager instance.
-
-  static Freenect::Freenect
-      *global_freenect_instance; // Instance of the Freenect object to hang on
-                                 // to for managing devices etc.
 
   static GodotNect *get_singleton();
 
@@ -86,12 +69,25 @@ public:
   **/
   static bool initialize_freenect_backend();
 
+  static bool shutdown_freenect_backend();
+
+  static GodotNectDevice createDevice(std::string _index,
+                                      freenect_depth_format depth_fmt,
+                                      freenect_video_format video_fmt,
+                                      freenect_resolution resolution_fmt);
+
+  static void deleteDevice(std::string _index);
+
+  static int deviceCount();
+
   // Working on ideas for how to get access to the lower-level side of the
   // library below the cpp wrapper. This would allow for actually initializing
   // kinects per serial instead of just a non-static id number. Current trick is
   // still getting hold of the freenect_context object that is needed to pass.
   static struct freenect_device_attributes **
   fetch_device_listing(freenect_context *ctx);
+
+  static void *async_thread(void *user_data);
 };
 
 #endif
